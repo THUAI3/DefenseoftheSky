@@ -61,7 +61,7 @@ Lands = [[] for i in range(MapWidth)]
 for i in range(MapWidth):
     for j in range(MapHeight):
         if BuildingMap[i][j]:
-            Lands[i].append(Land((i,j),owner=2,occupied=1,bidOnly=2))
+            Lands[i].append(Land((i,j),owner=2,occupied=True,filled=True,bidOnly=2))
         else:
             Lands[i].append(Land((i,j)))
 

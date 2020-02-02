@@ -244,21 +244,24 @@ def launch(operation, AI):
         pos = operation['detector']['pos']
         rangeType = operation['detector']['rangeType']
         if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
-            if 0<=rangeType and rangeType< MaxRangeNum:
-                cost = DetectorRangeCost[rangeType]
-                if Moneys[AI] >= cost:
-                    Moneys[AI] -= cost
-                    detectors.append(Detector(pos,rangeType,AI))
-                    pM = PollutionMap0 if AI == 0 else PollutionMap1
-                    deltaM = PollutionMap - pM
-                    
-                    logPerRound.append((6, AI, tuple(pos)))
+            land = Lands[pos[0]][pos[1]]
+            if not land.filled:
+                if 0<=rangeType and rangeType< MaxRangeNum:
+                    cost = DetectorRangeCost[rangeType]
+                    if Moneys[AI] >= cost:
+                        Moneys[AI] -= cost
+                        detectors.append(Detector(pos,rangeType,AI))
+                        land.filled = True
+                        pM = PollutionMap0 if AI == 0 else PollutionMap1
+                        deltaM = PollutionMap - pM
+                        
+                        logPerRound.append((6, AI, tuple(pos)))
 
-                    for i in range(MapWidth):
-                        for j in range(MapHeight):
-                            if deltaM[i][j] > 0 and detectors[-1].cover((i,j)):
-                                pM[i][j] = PollutionMap[i][j]
-                                logPerRound.append((7, AI, (i,j)))
+                        for i in range(MapWidth):
+                            for j in range(MapHeight):
+                                if deltaM[i][j] > 0 and detectors[-1].cover((i,j)):
+                                    pM[i][j] = PollutionMap[i][j]
+                                    logPerRound.append((7, AI, (i,j)))
                                 
                             
         
@@ -350,11 +353,12 @@ def main():
             # 地皮标记操作结算
             bid(msgObj,AI)
 
-            # 使用技能操作结算
-            tipster(msgObj,AI)
             
             # 设置新的检测设备
             launch(msgObj,AI)
+
+            # 使用技能操作结算
+            tipster(msgObj,AI)
     
         # 地皮竞拍结果结算
         bidUpdate()

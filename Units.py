@@ -57,10 +57,11 @@ class Detector(object):
         return False
 
 class Land(object):
-    def __init__(self,pos,owner=-1,occupied=0,bid=LandPrice-1,bidder=-1,round=-1,bidOnly=-1):
+    def __init__(self,pos,owner=-1,occupied=False,filled=False,bid=LandPrice-1,bidder=-1,round=-1,bidOnly=-1):
         super().__init__()
         self.pos = pos
         self.owner = owner
+        self.filled = filled
         self.occupied = occupied
         self.bid = bid
         self.bidder = bidder
@@ -71,6 +72,7 @@ class Land(object):
             'pos': self.pos,
             'owner': self.owner,
             'occupied': self.occupied,
+            'filled': self.filled,
             'bid': self.bid,
             'bidder': self.bidder,
             'round': self.round,
