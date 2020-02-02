@@ -74,7 +74,7 @@ void State::Debug(FILE* fp){
 			fprintf(fp, "%d ", pollution[i][j]);
 		}fprintf(fp, "\n");
 	}
-	fprintf(fp, "lands: \n");
+	/*fprintf(fp, "lands: \n");
 	int x, y;
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
@@ -92,7 +92,7 @@ void State::Debug(FILE* fp){
 			}
 			fprintf(fp, "(%5d, %5d) ", x, y);
 		}fprintf(fp, "\n");
-	}
+	}*/
 	fprintf(fp, "detectors: \n");
 	for(int i = 0; i < detectors.size(); ++i){
 		fprintf(fp, "pos = (%d, %d), rangeType = %d, owner = %d\n", 
@@ -243,6 +243,7 @@ bool Client::stateInfo(){
 			state->lands[x][y].bidder = tmp["bidder"].asInt();
 			state->lands[x][y].round = tmp["round"].asInt();
 			state->lands[x][y].bidOnly = tmp["bidOnly"].asInt();
+			state->lands[x][y].filled = tmp["filled"].asInt();
 		}
 	}
 	int sz = root["detectors"].size();
@@ -267,24 +268,31 @@ void Client::sendOpt(FILE* fp){
 	if(opt->tipsterX != -1 || opt->tipsterY != -1){
 		root["tipster"]["pos"][0] = opt->tipsterX;
 		root["tipster"]["pos"][1] = opt->tipsterY;
-	}
+	}else root["tipster"] = Json::Value();
+
 	if(opt->detectorX != -1 || opt->detectorY != -1 || opt->detectorRangeType != -1){
 		root["detector"]["pos"][0] = opt->detectorX;
 		root["detector"]["pos"][1] = opt->detectorY;
 		root["detector"]["rangeType"] = opt->detectorRangeType;
-	}
+	}else root["detector"] = Json::Value();
+
 	if(opt->processorX != -1 || opt->processorY != -1 || 
 		opt->processorProcessingType != -1 | opt->processorRangeType != -1){
 		root["processor"]["pos"][0] = opt->processorX;
 		root["processor"]["pos"][1] = opt->processorY;
 		root["processor"]["rangeType"] = opt->processorRangeType;
 		root["processor"]["processingType"] = opt->processorProcessingType;
-	}
+	}else root["processor"] = Json::Value();
+
 	if(opt->bidX != -1 || opt->bidY != -1 || opt->bidPrice != -1){
 		root["bid"]["pos"][0] = opt->bidX;
 		root["bid"]["pos"][1] = opt->bidY;
 		root["bid"]["bidPrice"] = opt->bidPrice;
-	}
+	}else root["bid"] = Json::Value();
+
+	std::string jsonStr = fw.write(root);
+	fprintf(fp, "%s", jsonStr.c_str());
+	fflush(fp);
 	sendLen((int)(jsonStr.length()));
 	printf("%s", jsonStr.c_str());
 	fflush(stdout);

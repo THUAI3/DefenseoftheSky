@@ -61,6 +61,7 @@ public:
 	int bidder;
 	int round;
 	int bidOnly;
+	int filled;
 	Land();
 	~Land();
 };

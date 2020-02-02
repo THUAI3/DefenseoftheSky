@@ -3,12 +3,12 @@
 #define DEBUG 1
 
 int main(){
-	FILE *fp;
 	Client* client = new Client();
 	client->init();
+#ifdef DEBUG
+	FILE *fp;
 	if(client->parameters->num == 0)fp = fopen("log0.txt", "w");
 	else fp = fopen("log1.txt", "w");
-#ifdef DEBUG
 	client->parameters->Debug(fp);
 #endif
 	while(true){

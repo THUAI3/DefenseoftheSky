@@ -1,19 +1,42 @@
 #pragma once
 #include "../include/client/client.h"
 
+/*
+	常量
+*/
 const int dx[3][9] = {{0, 0, 0, 1, -1, 0, 0, 2, -2},
 				   {0, 0, 0, 1, -1, 1, 1, -1, -1},
 				   {0, 1, 1, -1, -1, 2, 2, -2, -2}};
 const int dy[3][9] = {{0, 1, -1, 0, 0, 2, -2, 0, 0},
 				   {0, 1, -1, 0, 0, 1, -1, 1, -1},
 				   {0, 1, -1, 1, -1, 2, -2, 2, -2}};
+const int inf = 0x7fffffff;
 
-int pollutionPosNum;
-bool buildingMap[WIDTH][HEIGHT];
-bool knowMap[WIDTH][HEIGHT];
-std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];
+/*
+	估值参数
+*/
+const int isDetected = 54;//探索过的地方的估值参数
 
+/*
+	初始确定
+*/
+int pollutionPosNum;//总污染源
+bool buildingMap[WIDTH][HEIGHT];//建筑物地图
+std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];//范围控制点
+
+/*
+	回合更新
+*/
 int stateNum = 0;
+bool knowMap[WIDTH][HEIGHT];//可以确定是否有污染源的点
+bool filledMap[WIDTH][HEIGHT];//是否可放置检测设备,true代表不可放置
+
+/*
+	计算用
+*/
+int valueMap[WIDTH][HEIGHT][MAXRANGENUM];//估值地图 
+int tmpMap[WIDTH][HEIGHT];//临时变量地图
+
 
 int getMax(int x, int y){
 	return x > y? x : y;
@@ -28,11 +51,13 @@ bool checkInMap(int x, int y){
 }
 
 void init(Parameters* parameters, State* state){
+	srand((unsigned)time(NULL));
 	for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)buildingMap[i][j] = false;
 	int sz = parameters->buildings.size();
 	for(int i = 0; i < sz; ++i){
 		buildingMap[parameters->buildings[i].first][parameters->buildings[i].second] = true;
 	}
+
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			for(int k = 0; k < MAXRANGENUM; ++k){
@@ -47,6 +72,102 @@ void init(Parameters* parameters, State* state){
 				}
 			}
 		}
+	}
+
+	for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < WIDTH; ++j)knowMap[i][j] = false;
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->pollution[i][j])knowMap[i][j] = true;
+			if(buildingMap[i][j])knowMap[i][j] = true;
+		}
+	}
+	return;
+}
+
+void updateState(State* state){
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].filled)filledMap[i][j] = true;
+			else filledMap[i][j] = false;
+		}
+	}
+	return;
+}
+
+void calculateDetectorValue(){
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(knowMap[i][j])tmpMap[i][j] = isDetected;
+			else tmpMap[i][j] = 0;
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(filledMap[i][j])continue;
+			for(int k = 0; k < MAXRANGENUM; ++k){
+				int sz = control[i][j][k].size();
+				for(int index = 0; index < sz; ++index){
+					int x = control[i][j][k][index].first;
+					int y = control[i][j][k][index].second;
+					if(!knowMap[x][y])tmpMap[x][y]++;
+				}
+			}
+		}
+	}
+
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(filledMap[i][j])continue;
+			for(int k = 0; k < MAXRANGENUM; ++k){
+				valueMap[i][j][k] = 0;
+				int sz = control[i][j][k].size();
+				for(int index = 0; index < sz; ++index){
+					int x = control[i][j][k][index].first;
+					int y = control[i][j][k][index].second;
+					valueMap[i][j][k] += tmpMap[x][y];
+				}
+			}
+		}
+	}
+	return;
+}
+
+bool checkDetector(int x, int y, int range){
+	int sz = control[x][y][range].size();
+	int controlNum = 0;
+	for(int i = 0; i < sz; ++i){
+		int controlX = control[x][y][range][i].first;
+		int controlY = control[x][y][range][i].second;
+		if(!knowMap[controlX][controlY])controlNum++;
+	}
+	double probability = 1.0;
+	return false;
+}
+
+void detectorOperation(Parameters* parameters,
+					   State* state,
+					   Operations *opt){
+	calculateDetectorValue();
+	int detectorX = -1;
+	int detectorY = -1;
+	int detectorRange = -1;
+	int minValue = inf;
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(filledMap[i][j])continue;
+			for(int k = 0; k < MAXRANGENUM; ++k){
+				if(minValue > valueMap[i][j][k]){
+					minValue = valueMap[i][j][k];
+					detectorY = i;
+					detectorY = j;
+					detectorRange = k;
+				}
+			}
+		}
+	}
+	if(detectorX == -1)return;
+	if(checkDetector(detectorX, detectorY, detectorRange)){
+		opt->setDetector(detectorX, detectorY, detectorRange);
 	}return;
 }
 
@@ -108,7 +229,9 @@ void getOperations(Parameters* parameters,
 	*/
 	stateNum++;
 	if(stateNum == 1)init(parameters, state);
-	opt->setTipster(WIDTH>>1, HEIGHT>>1);
+	updateState(state);
+	detectorOperation(parameters, state, opt);
+	opt->setTipster(WIDTH >> 1, HEIGHT >> 1);
 }
 
 

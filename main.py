@@ -15,6 +15,8 @@ errMsg = ['','']
 log = {}
 logPerRound = []
 
+msgObj = {}
+
 # DEBUG
 
 def convertByte(jsonStr):
@@ -36,7 +38,7 @@ def receiveMsg(AI):
     readBuffer = subpro[AI].stdout.buffer
     dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
     data = readBuffer.read(dataLen)
-    return json.loads(data)
+    return data
 
 def logInitState():
     initState = {
@@ -103,9 +105,6 @@ def sendRoundState(AI):
         'errMsg':errMsg[AI],
     }
     errMsg[AI] = ''
-
-    print(Moneys)
-
     for i in range(MapWidth):
         state['lands'].append([])
         for j in range(MapHeight):
@@ -119,7 +118,7 @@ def sendRoundState(AI):
         
     sendMsg(json.dumps(state), AI)
 
-def validate(msg,AI):
+def validate(msg, AI):
     # msg = {
     #     'detector':{
     #         'pos':(x,y),
@@ -138,6 +137,7 @@ def validate(msg,AI):
     #         'processingType':0/1/2..,
     #     },
     # }
+    global msgObj
     try:
         msgObj = json.loads(msg)
     except:
@@ -161,26 +161,26 @@ def validate(msg,AI):
         if not msgObj['detector'] is None:
             assert type(msgObj['detector']['pos']) == type([]), 'detector pos invalid'
             assert len(msgObj['detector']['pos']) == 2, 'detector pos invalid'
-            assert type(operation['detector']['pos'][0]) == type(0), "detector pos invalid"
-            assert type(operation['detector']['pos'][1]) == type(0), "detector pos invalid"
+            assert type(msgObj['detector']['pos'][0]) == type(0), "detector pos invalid"
+            assert type(msgObj['detector']['pos'][1]) == type(0), "detector pos invalid"
             assert type(msgObj['detector']['rangeType']) == type(0), 'detector rangeType invalid'
         if not msgObj['tipster'] is None:
             assert type(msgObj['tipster']['pos']) == type([]), 'tipster pos invalid'
             assert len(msgObj['tipster']['pos']) == 2, 'tipster pos invalid'
-            assert type(operation['tipster']['pos'][0]) == type(0), "tipster pos invalid"
-            assert type(operation['tipster']['pos'][1]) == type(0), "tipster pos invalid"
+            assert type(msgObj['tipster']['pos'][0]) == type(0), "tipster pos invalid"
+            assert type(msgObj['tipster']['pos'][1]) == type(0), "tipster pos invalid"
         
         if not msgObj['bid'] is None:
             assert type(msgObj['bid']['pos']) == type([]), 'bid pos invalid'
             assert len(msgObj['bid']['pos']) == 2, 'bid pos invalid'
-            assert type(operation['bid']['pos'][0]) == type(0), "bid pos invalid"
-            assert type(operation['bid']['pos'][1]) == type(0), "bid pos invalid"
+            assert type(msgObj['bid']['pos'][0]) == type(0), "bid pos invalid"
+            assert type(msgObj['bid']['pos'][1]) == type(0), "bid pos invalid"
             assert type(msgObj['bid']['bidPrice']) == type(0), 'bid bidPrice invalid'
         if not msgObj['processor'] is None:
             assert type(msgObj['processor']['pos']) == type([]), 'processor pos invalid'
             assert len(msgObj['processor']['pos']) == 2, 'processor pos invalid'
-            assert type(operation['processor']['pos'][0]) == type(0), "processor pos invalid"
-            assert type(operation['processor']['pos'][1]) == type(0), "processor pos invalid"
+            assert type(msgObj['processor']['pos'][0]) == type(0), "processor pos invalid"
+            assert type(msgObj['processor']['pos'][1]) == type(0), "processor pos invalid"
             assert type(msgObj['processor']['rangeType']) == type(0), 'processor rangeType invalid'
             assert type(msgObj['processor']['processingType']) == type(0), 'processor processingType invalid'        
     except AssertionError as Argument:
@@ -189,7 +189,7 @@ def validate(msg,AI):
     return True
 
 def construct(operation,AI):
-    if not operation['processor'] is None:
+    if operation['processor'] is not None:
         pos = operation['processor']['pos']
         rangeType = operation['processor']['rangeType']
         processingType = operation['processor']['processingType']
@@ -205,7 +205,7 @@ def construct(operation,AI):
                         logPerRound.append((1,AI,tuple(pos),rangeType,processingType))
 
 def bid(operation, AI):
-    if not operation['bid'] is None:
+    if operation['bid'] is not None:
         pos = operation['bid']['pos']
         bidPrice = operation['bid']['bidPrice']
         if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
@@ -218,7 +218,7 @@ def bid(operation, AI):
                 
                 
 def tipster(operation, AI):
-    if not operation['tipster'] is None:
+    if operation['tipster'] is not None:
         pos = operation['tipster']['pos']
         pM = PollutionMap0 if AI==0 else PollutionMap1
         if Moneys[AI] >= TipsterCost:
@@ -240,7 +240,7 @@ def tipster(operation, AI):
         logPerRound.append((4, AI, tuple(tmp[0])))
 
 def launch(operation, AI):
-    if not operation['detector']:
+    if operation['detector'] is not None:
         pos = operation['detector']['pos']
         rangeType = operation['detector']['rangeType']
         if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
@@ -346,13 +346,12 @@ def main():
         # 执行AI的操作消息
         msg = receiveMsg(AI)
 
-        if validate(msg,AI):
+        if validate(msg, AI):
             # 治理设备建造操作结算
             construct(msgObj,AI)
 
             # 地皮标记操作结算
             bid(msgObj,AI)
-
             
             # 设置新的检测设备
             launch(msgObj,AI)

@@ -6,10 +6,6 @@
 
 #IncludeRegexTransform: 
 
-/Users/aglove/desktop/DefenseoftheSky/AI/include/client/client.cpp
-client.h
-/Users/aglove/desktop/DefenseoftheSky/AI/include/client/client.h
-
 /Users/aglove/desktop/DefenseoftheSky/AI/include/client/client.h
 ../jsoncpp/json/json.h
 /Users/aglove/desktop/DefenseoftheSky/AI/include/jsoncpp/json/json.h
@@ -77,4 +73,12 @@ sstream
 -
 config.h
 /Users/aglove/desktop/DefenseoftheSky/AI/include/jsoncpp/json/config.h
+
+/Users/aglove/desktop/DefenseoftheSky/AI/src/main.cpp
+./player.hpp
+/Users/aglove/desktop/DefenseoftheSky/AI/src/player.hpp
+
+/Users/aglove/desktop/DefenseoftheSky/AI/src/player.hpp
+../include/client/client.h
+/Users/aglove/desktop/DefenseoftheSky/AI/include/client/client.h
 
