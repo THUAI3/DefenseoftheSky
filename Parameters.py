@@ -55,6 +55,7 @@ Scores = [0,0]
 Moneys = [2000,2000]
 
 # 所有地皮的竞价与使用情况
+from Units import *
 Lands = [[] for i in range(MapWidth)]
 
 for i in range(MapWidth):

@@ -1,12 +1,14 @@
 from Parameters import *
-from Units import *
-from math import abs
+import sys
 import json
 import time
-
+import shlex
+import subprocess
 
 detectors = []
 processors = []
+
+subpro = []
 
 errMsg = ['','']
 
@@ -14,15 +16,27 @@ log = {}
 logPerRound = []
 
 # DEBUG
-def sendMsg(jsonStr):
-    jsonObj = json.loads(jsonStr)
-    print("======== Send To %d ========" % jsonObj['AI'])
-    print(json.dumps(jsonObj, sort_keys=True, indent=4, separators=(',', ': ')))
-    print("============================")
 
-def receiveMsg():
-    jsonStr = input()
-    return jsonStr
+def convertByte(jsonStr):
+    msgLen = len(jsonStr)
+    msg = msgLen.to_bytes(4, byteorder='big', signed=True)
+    msg += bytes(jsonStr, encoding="utf8")
+    return msg
+
+def sendMsg(jsonStr, goal):
+    jsonObj = json.loads(jsonStr)
+    #print("======== Send To %d ========" % jsonObj['AI'])
+    #print(json.dumps(jsonObj, sort_keys=True, indent=4, separators=(',', ': ')))
+    #print("============================")
+    #print("goal = %d" % goal)
+    subpro[goal].stdin.buffer.write(convertByte(jsonStr))
+    subpro[goal].stdin.buffer.flush()
+
+def receiveMsg(AI):
+    readBuffer = subpro[AI].stdout.buffer
+    dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
+    data = readBuffer.read(dataLen)
+    return json.loads(data)
 
 def logInitState():
     initState = {
@@ -44,7 +58,7 @@ def logInitState():
         'scores': Scores,
         'moneys': Moneys,
     }
-    errMsg[AI] = ''
+    errMsg = ['','']
     for i in range(MapWidth):
         for j in range(MapHeight):
             if BuildingMap[i][j]:
@@ -74,7 +88,7 @@ def sendInitState(AI):
         for j in range(MapHeight):
             if BuildingMap[i][j]:
                 initState['buildings'].append((i,j))
-    sendMsg(json.dumps(initState))
+    sendMsg(json.dumps(initState), AI)
 
 def sendRoundState(AI):
     pollutionM = PollutionMap0 if AI == 0 else PollutionMap1
@@ -90,6 +104,8 @@ def sendRoundState(AI):
     }
     errMsg[AI] = ''
 
+    print(Moneys)
+
     for i in range(MapWidth):
         state['lands'].append([])
         for j in range(MapHeight):
@@ -101,7 +117,7 @@ def sendRoundState(AI):
     for processor in processors:
         state['processors'].append(processor.toJsonObj()) 
         
-    sendMsg(json.dumps(state))
+    sendMsg(json.dumps(state), AI)
 
 def validate(msg,AI):
     # msg = {
@@ -130,14 +146,14 @@ def validate(msg,AI):
     
     try:
         assert 'detector' in msgObj, "detector operation not found"
-        assert (msgObj['detector'] is None)or('pos' in msgObj['detector'] and 'rangeType' in msgObj['detector']), 'detector operation invalid'
+        assert (msgObj['detector'] is None) or ('pos' in msgObj['detector'] and 'rangeType' in msgObj['detector']), 'detector operation invalid'
         assert 'tipster' in msgObj, "tipster operation not found"
-        assert (msgObj['tipster'] is None)or('pos' in msgObj['tipster']), 'tipster operation invalid'
+        assert (msgObj['tipster'] is None) or ('pos' in msgObj['tipster']), 'tipster operation invalid'
         assert 'bid' in msgObj, "bid operation not found"
-        assert (msgObj['bid'] is None)or('pos' in msgObj['bid'] and 'bidPrice' in msgObj['bid']), 'bid operation invalid'
+        assert (msgObj['bid'] is None) or ('pos' in msgObj['bid'] and 'bidPrice' in msgObj['bid']), 'bid operation invalid'
         assert 'processor' in msgObj, "processor operation not found"
-        assert (msgObj['processor'] is None)or('pos' in msgObj['processor'] and 'rangeType' in msgObj['processor'] and 'processingType' in msgObj['processor']), 'processing operation invalid' 
-    except AssertionError,Argument:
+        assert (msgObj['processor'] is None) or ('pos' in msgObj['processor'] and 'rangeType' in msgObj['processor'] and 'processingType' in msgObj['processor']), 'processing operation invalid' 
+    except AssertionError as Argument:
         errMsg[AI] = Argument
         return False
 
@@ -167,7 +183,7 @@ def validate(msg,AI):
             assert type(operation['processor']['pos'][1]) == type(0), "processor pos invalid"
             assert type(msgObj['processor']['rangeType']) == type(0), 'processor rangeType invalid'
             assert type(msgObj['processor']['processingType']) == type(0), 'processor processingType invalid'        
-    except AssertionError,Argument:
+    except AssertionError as Argument:
         errMsg[AI] = Argument
         return False
     return True
@@ -297,7 +313,21 @@ def endGame():
 
 
 def main():
-    global log,logPerRound
+    global log,logPerRound,subpro
+    #启动进程
+    try:
+        subpro.append(subprocess.Popen(shlex.split(sys.argv[1]), stdout=subprocess.PIPE,\
+                stdin=subprocess.PIPE, universal_newlines=True))
+        subpro.append(subprocess.Popen(shlex.split(sys.argv[2]), stdout=subprocess.PIPE,\
+                stdin=subprocess.PIPE, universal_newlines=True))
+    except Exception as e:
+        for pro in subpro:
+            try:
+                pro.terminate()
+            except:
+                pass
+        print(e)
+        sys.exit()
     # 初始化，给出地图信息
     sendInitState(0)
     sendInitState(1)
@@ -309,9 +339,9 @@ def main():
         # 向AI发送当前的局面信息
         sendRoundState(AI)
         # 等待并接收AI的操作信息
-        time.sleep(1)
+        time.sleep(2)
         # 执行AI的操作消息
-        msg = receiveMsg()
+        msg = receiveMsg(AI)
 
         if validate(msg,AI):
             # 治理设备建造操作结算

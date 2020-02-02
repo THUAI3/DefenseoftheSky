@@ -24,7 +24,7 @@ class Processor(object):
         x,y = self.pos
         for dx,dy in DeltaPos[self.rangeType]:
             if x+dx == targetPos[0] and y+dy == targetPos[1]:
-                if math.max(math.abs(dx),math.abs(dy)) == 2 and BuildingMap[x+(dx>>1)][y+(dy>>1)]:
+                if math.max(abs(dx),abs(dy)) == 2 and BuildingMap[x+(dx>>1)][y+(dy>>1)]:
                     return False
                 return True
         return False
@@ -51,7 +51,7 @@ class Detector(object):
         x,y = self.pos
         for dx,dy in DeltaPos[self.rangeType]:
             if x+dx == targetPos[0] and y+dy == targetPos[1]:
-                if math.max(math.abs(dx),math.abs(dy)) == 2 and BuildingMap[x+(dx>>1)][y+(dy>>1)]:
+                if math.max(abs(dx),abs(dy)) == 2 and BuildingMap[x+(dx>>1)][y+(dy>>1)]:
                     return False
                 return True
         return False
