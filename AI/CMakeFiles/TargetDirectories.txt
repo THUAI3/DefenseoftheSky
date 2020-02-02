@@ -1,3 +1,0 @@
-/Users/aglove/desktop/DefenseoftheSky/AI/CMakeFiles/rebuild_cache.dir
-/Users/aglove/desktop/DefenseoftheSky/AI/CMakeFiles/edit_cache.dir
-/Users/aglove/desktop/DefenseoftheSky/AI/CMakeFiles/sample_ai.dir
