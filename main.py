@@ -115,7 +115,6 @@ def sendRoundState(AI):
 
     for processor in processors:
         state['processors'].append(processor.toJsonObj()) 
-        
     sendMsg(json.dumps(state), AI)
 
 def validate(msg, AI):
@@ -188,6 +187,22 @@ def validate(msg, AI):
         return False
     return True
 
+def treatPollution(pro, AI):
+    pM = PollutionMap0 if AI == 0 else PollutionMap1
+    for i in range(MapWidth):
+        for j in range(MapHeight):
+            if pro.cover((i, j)) and pM[i][j]:
+                if ((pM[i][j] >> pro.processingType)&1):
+                    pM[i][j] -= (1 << pro.processingType)
+                    if pM[i][j] == 0:
+                        Moneys[AI] += int(PollutionProfitMap[i][j])
+                        Scores[AI] += int(PollutionProfitMap[i][j])
+                        PollutionMap0[i][j] = 0
+                        PollutionMap1[i][j] = 0
+                        PollutionMap[i][j] = 0
+                        logPerRound.append((10,AI,(i,j),(int)(PollutionProfitMap[i][j])))
+
+
 def construct(operation,AI):
     if operation['processor'] is not None:
         pos = operation['processor']['pos']
@@ -196,13 +211,39 @@ def construct(operation,AI):
         if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
             land = Lands[pos[0]][pos[1]]
             if land.owner == AI and not land.occupied:
-                if 0<=rangeType and rangeType< MaxRangeNum and processingType and processingType<PollutionComponentNum:
+                if 0<=rangeType and rangeType< MaxRangeNum and 0<=processingType and processingType<PollutionComponentNum:
                     cost = ProcessorRangeCost[rangeType] + ProcessorTypeCost[processingType]
                     if Moneys[AI] >= cost:
                         Moneys[AI] -= cost
                         land.occupied = True
                         processors.append(Processor(tuple(pos),rangeType,processingType,AI))
                         logPerRound.append((1,AI,tuple(pos),rangeType,processingType))
+                        treatPollution(processors[-1], AI)
+
+def checkPollution(det, AI):
+    pM = PollutionMap0 if AI == 0 else PollutionMap1
+    for i in range(MapWidth):
+        for j in range(MapHeight):
+            if det.cover((i, j)):
+                if PollutionMap[i][j] and pM[i][j] == 0:
+                    pM[i][j] = PollutionMap[i][j]
+                    logPerRound.append((7, AI, (i,j)))
+
+def launch(operation, AI):
+    if operation['detector'] is not None:
+        pos = operation['detector']['pos']
+        rangeType = operation['detector']['rangeType']
+        if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
+            land = Lands[pos[0]][pos[1]]
+            if not land.filled:
+                if 0<=rangeType and rangeType< MaxRangeNum:
+                    cost = DetectorRangeCost[rangeType]
+                    if Moneys[AI] >= cost:
+                        Moneys[AI] -= cost
+                        land.filled = True
+                        detectors.append(Detector(pos,rangeType,AI))
+                        logPerRound.append((6, AI, tuple(pos)))
+                        checkPollution(detectors[-1], AI)
 
 def bid(operation, AI):
     if operation['bid'] is not None:
@@ -225,10 +266,14 @@ def tipster(operation, AI):
             Moneys[AI] -= TipsterCost
         else:
             return
-        if np.sum(PollutionMap-pM) == 0:
+        deltaM = np.zeros_like(PollutionMap)
+        for i in range(MapWidth):
+            for j in range(MapHeight):
+                if PollutionMap[i][j] and pM[i][j] == 0:
+                    deltaM[i][j] = PollutionMap[i][j]
+        if np.sum(deltaM) == 0:
             return
         
-        deltaM = PollutionMap - pM
         tmp = []
         for i in range(MapWidth):
             for j in range(MapHeight):
@@ -238,53 +283,6 @@ def tipster(operation, AI):
         pM[tmp[0][0]][tmp[0][1]] = PollutionMap[tmp[0][0]][tmp[0][1]]
         logPerRound.append((3, AI, tuple(pos)))
         logPerRound.append((4, AI, tuple(tmp[0])))
-
-def launch(operation, AI):
-    if operation['detector'] is not None:
-        pos = operation['detector']['pos']
-        rangeType = operation['detector']['rangeType']
-        if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
-            land = Lands[pos[0]][pos[1]]
-            if not land.filled:
-                if 0<=rangeType and rangeType< MaxRangeNum:
-                    cost = DetectorRangeCost[rangeType]
-                    if Moneys[AI] >= cost:
-                        Moneys[AI] -= cost
-                        detectors.append(Detector(pos,rangeType,AI))
-                        land.filled = True
-                        pM = PollutionMap0 if AI == 0 else PollutionMap1
-                        deltaM = PollutionMap - pM
-                        
-                        logPerRound.append((6, AI, tuple(pos)))
-
-                        for i in range(MapWidth):
-                            for j in range(MapHeight):
-                                if deltaM[i][j] > 0 and detectors[-1].cover((i,j)):
-                                    pM[i][j] = PollutionMap[i][j]
-                                    logPerRound.append((7, AI, (i,j)))
-                                
-                            
-        
-def treatPollution(AI):
-    pM = PollutionMap0 if AI == 0 else PollutionMap1
-    for i in range(MapWidth):
-        for j in range(MapHeight):
-            if pM[i][j] > 0:
-                components = 0
-                for processor in processors:
-                    if processor.cover((i,j)):
-                        components |= 1 << processor.processingType
-                if (components & pM[i][j]) == pM[i][j]:
-                    profit = LandPrice
-                    for k in range(PollutionComponentNum):
-                        if pM[i][j] & (1<<k) == (1<<k):
-                            profit += PollutionProfit[k]
-                    Moneys[AI] += profit
-                    Scores[AI] += profit
-                    PollutionMap0[i][j] = 0
-                    PollutionMap1[i][j] = 0
-                    PollutionMap[i][j] = 0
-                    logPerRound.append((10,AI,(i,j),profit))
                 
 def bidUpdate():
     for i in range(MapWidth):
@@ -347,6 +345,7 @@ def main():
         msg = receiveMsg(AI)
 
         if validate(msg, AI):
+            # 为了降低AI难度，结算顺序如下：
             # 治理设备建造操作结算
             construct(msgObj,AI)
 
@@ -362,9 +361,6 @@ def main():
         # 地皮竞拍结果结算
         bidUpdate()
         
-        # 污染源治理结算
-        treatPollution(AI)
-        
         log[round] = logPerRound
         logPerRound = []
 
@@ -373,6 +369,9 @@ def main():
             break
 
     # 保存录像文件
+    fo = open("replay.json", "w")
+    fo.write(json.dumps(log))
+    fo.close()
 
 
 if __name__ == '__main__':

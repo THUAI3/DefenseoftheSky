@@ -112,7 +112,7 @@ public:
 	Client();
 	~Client();
 	bool init();
-	bool stateInfo();
+	bool stateInfo(FILE*);
 	void sendOpt(FILE*);
 private:
 	Json::Value root;

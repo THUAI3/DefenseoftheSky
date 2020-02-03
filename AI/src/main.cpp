@@ -12,7 +12,7 @@ int main(){
 	client->parameters->Debug(fp);
 #endif
 	while(true){
-		client->stateInfo();
+		client->stateInfo(fp);
 #ifdef DEBUG
 		client->state->Debug(fp);
 #endif
@@ -22,6 +22,8 @@ int main(){
 #endif
 		client->sendOpt(fp);
 	}
+#ifdef DEBUG
 	fclose(fp);
+#endif
 	delete client;
 }

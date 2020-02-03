@@ -74,7 +74,7 @@ void State::Debug(FILE* fp){
 			fprintf(fp, "%d ", pollution[i][j]);
 		}fprintf(fp, "\n");
 	}
-	/*fprintf(fp, "lands: \n");
+	fprintf(fp, "lands: \n");
 	int x, y;
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
@@ -92,7 +92,7 @@ void State::Debug(FILE* fp){
 			}
 			fprintf(fp, "(%5d, %5d) ", x, y);
 		}fprintf(fp, "\n");
-	}*/
+	}
 	fprintf(fp, "detectors: \n");
 	for(int i = 0; i < detectors.size(); ++i){
 		fprintf(fp, "pos = (%d, %d), rangeType = %d, owner = %d\n", 
@@ -217,7 +217,7 @@ bool Client::init(){
 	}
 	return true;
 }
-bool Client::stateInfo(){
+bool Client::stateInfo(FILE* fp){
 	std::string stateStr = read();
 	root.clear();
 	if(!reader.parse(stateStr, root))return false;
@@ -232,6 +232,7 @@ bool Client::stateInfo(){
 			state->pollution[i][j] = root["pollution"][i][j].asInt();
 		}
 	}
+	fflush(fp);
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			Json::Value tmp = root["lands"][i][j];
@@ -248,14 +249,14 @@ bool Client::stateInfo(){
 	}
 	int sz = root["detectors"].size();
 	for(int i = 0; i < sz; ++i){
-		Json::Value tmp = root["detectors"];
+		Json::Value tmp = root["detectors"][i];
 		state->detectors.push_back(
 			Detector(tmp["pos"][0].asInt(), tmp["pos"][1].asInt(), 
 					 tmp["rangeType"].asInt(), tmp["owner"].asInt()));
 	}
 	sz = root["processors"].size();
 	for(int i = 0; i < sz; ++i){
-		Json::Value tmp = root["processors"];
+		Json::Value tmp = root["processors"][i];
 		state->processors.push_back(
 			Processor(tmp["pos"][0].asInt(), tmp["pos"][1].asInt(),
 					  tmp["rangeType"].asInt(), tmp["processingType"].asInt(), 
@@ -291,8 +292,6 @@ void Client::sendOpt(FILE* fp){
 	}else root["bid"] = Json::Value();
 
 	std::string jsonStr = fw.write(root);
-	fprintf(fp, "%s", jsonStr.c_str());
-	fflush(fp);
 	sendLen((int)(jsonStr.length()));
 	printf("%s", jsonStr.c_str());
 	fflush(stdout);

@@ -15,57 +15,6 @@ BuildingMap = np.load("Buildings.npy")
 # 污染空气的种类数
 PollutionComponentNum = 3
 
-# 每个非高大建筑的格子是污染源的概率
-PollutionProbability = 0.3
-
-NotPolluted = (np.random.rand(MapWidth,MapHeight) > PollutionProbability)
-NotPolluted[BuildingMap] = True
-
-# 污染源地图
-
-PollutionMap = np.random.randint(1,2**PollutionComponentNum,size=(MapWidth,MapHeight),dtype=np.int)
-PollutionMap[NotPolluted] = 0
-
-# 玩家0与玩家1分别的初始可见地图
-# 玩家0执先手，玩家1执后手
-
-PollutionMap0 = np.zeros_like(PollutionMap)
-PollutionMap1 = np.zeros_like(PollutionMap)
-
-PollutionPoss = []
-for i in range(MapWidth):
-    for j in range(MapHeight):
-        if not NotPolluted[i][j]:
-            PollutionPoss.append((i,j))
-
-random.shuffle(PollutionPoss)
-
-PollutionNum = len(PollutionPoss)
-
-for i,j in PollutionPoss[:int(PollutionNum/3)]:
-    PollutionMap0[i][j] = PollutionMap[i][j]
-
-for i,j in PollutionPoss[PollutionNum-int(PollutionNum/3):PollutionNum]:
-    PollutionMap1[i][j] = PollutionMap[i][j]
-
-# 初始得分
-Scores = [0,0]
-
-# 初始金钱数量
-Moneys = [2000,2000]
-
-# 所有地皮的竞价与使用情况
-from Units import *
-Lands = [[] for i in range(MapWidth)]
-
-for i in range(MapWidth):
-    for j in range(MapHeight):
-        if BuildingMap[i][j]:
-            Lands[i].append(Land((i,j),owner=2,occupied=True,filled=True,bidOnly=2))
-        else:
-            Lands[i].append(Land((i,j)))
-
-
 # 最大回合数 要求一定是偶数
 MaxRound = 100
 
@@ -105,12 +54,66 @@ ProcessorTypeCost = [100,100,100]
 DetectorRangeCost = [200,200,200]
 
 # 情报贩子的价格
-
 TipsterCost = 400
 
 # 解决污染的价格
-
 PollutionProfit = [600,700,800]
+
+# 每个非高大建筑的格子是污染源的概率
+PollutionProbability = 0.3
+
+NotPolluted = (np.random.rand(MapWidth,MapHeight) > PollutionProbability)
+NotPolluted[BuildingMap] = True
+
+# 污染源地图
+
+PollutionMap = np.random.randint(1,2**PollutionComponentNum,size=(MapWidth,MapHeight),dtype=np.int)
+PollutionMap[NotPolluted] = 0
+
+# 玩家0与玩家1分别的初始可见地图
+# 玩家0执先手，玩家1执后手
+
+PollutionMap0 = np.zeros_like(PollutionMap)
+PollutionMap1 = np.zeros_like(PollutionMap)
+PollutionProfitMap = np.zeros_like(PollutionMap)
+
+PollutionPoss = []
+for i in range(MapWidth):
+    for j in range(MapHeight):
+        if not NotPolluted[i][j]:
+            PollutionPoss.append((i,j))
+
+random.shuffle(PollutionPoss)
+
+PollutionNum = len(PollutionPoss)
+
+for i,j in PollutionPoss[:int(PollutionNum/3)]:
+    PollutionMap0[i][j] = PollutionMap[i][j]
+
+for i,j in PollutionPoss[PollutionNum-int(PollutionNum/3):PollutionNum]:
+    PollutionMap1[i][j] = PollutionMap[i][j]
+
+for i in range(MapWidth):
+    for j in range(MapHeight):
+        for k in range(PollutionComponentNum):
+            PollutionProfitMap[i][j] += ((PollutionMap[i][j]>>k)&1)*PollutionProfit[k];
+
+# 初始得分
+Scores = [0,0]
+
+# 初始金钱数量
+Moneys = [10000,10000]
+
+# 所有地皮的竞价与使用情况
+from Units import *
+Lands = [[] for i in range(MapWidth)]
+
+for i in range(MapWidth):
+    for j in range(MapHeight):
+        if BuildingMap[i][j]:
+            Lands[i].append(Land((i,j),owner=2,occupied=True,filled=True,bidOnly=2))
+        else:
+            Lands[i].append(Land((i,j)))
 
 if __name__ == '__main__':
     def PrintMap(m):
