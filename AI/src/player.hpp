@@ -44,6 +44,20 @@ void getOperations(Parameters* parameters,
 	    	地皮情况: Land lands[WIDTH][HEIGHT];
 	    	放置检测设备情况: std::vector<Detector>detectors;
 	    	放置治理设备情况: std::vector<Processor>processors;
+			
+		以下变量如果上两回合无该操作，则对应的容器大小为0或者变量为-1
+	    	我方情报贩子的中心点:int tipsterX, tipsterY;
+    		我方情报贩子侦测情报位置和污染情况:int tipsterCheckX, tipsterCheckY, tipsterCheckPollution;
+    		我方检测设备放置位置和范围类型:int myDetectorX, myDetectorY, myDetectorRange;
+    		我方治理设备放置位置和范围类型、气体类型:
+    			int myProcessorX, myProcessorY, myProcessorRange, myProcessorType;
+    		我方标价位置和标价:int myBidX, myBidY, myBidPrice;
+    		对方标价位置和标价:int otherBidX, otherBidY, otherBidPrice;
+    		对方检测设备放置位置和范围类型:int otherDetectorX, otherDetectorY, otherDetectorRange;
+    		对方治理设备放置位置,范围类型,气体类型:int otherProcessorX, otherProcessorY, otherProcessorRange, otherProcessorType;
+    		我方检测设备侦测到的污染源位置:std::vector<std::pair<int,int>>myDetectorCheckPos;
+    		我方检测设备侦测到的污染源组成:std::vector<int>myDetectorCheckPollution;
+    		我方获得收益的点:std::vector<std::pair<int,int>>profitPos;
 	@opt
 		member functions(public):
 			@x 获取情报的中心位置x坐标,对应mapWidth那一维,下标从0开始,以下同理
@@ -54,14 +68,12 @@ void getOperations(Parameters* parameters,
 			@y 放置检测设备的位置y坐标
 			@rangeType 放置检测设备的检测范围类型,对应maxRangeNum,下标从0开始,以下同理
     		void setDetector(int x, int y, int rangeType):设置本回合放置的检测设备，如果本回合不使用，请勿调用
-
     		@x 放置治理设备的位置x坐标
     		@y 放置治理设备的位置y坐标
     		@rangeType 放置治理设备的治理范围类型
     		@processingType 放置治理设备的治理气体类型,对应pollutionComponentNum,下标从0开始
     		void setProcessor(int x, int y, int rangeType, int processingType):设置本回合放置的治理设备，
     		如果本回合不使用，请勿调用
-
 			@x 地皮竞价的位置x坐标
 			@y 地皮竞价的位置y坐标
 			@bidPrice 本回合对该地皮的报价，要求bidPrice大于上一次报价且为landPrice*0.1的整数倍
@@ -139,5 +151,3 @@ void getOperations(Parameters* parameters,
 	}
 	return;
 }
-
-

@@ -61,6 +61,17 @@ State::~State(){}
 void State::clear(){
 	detectors.clear();
 	processors.clear();
+	tipsterX = -1; tipsterY = -1;
+	tipsterCheckX = -1; tipsterCheckY = -1; tipsterCheckPollution = -1;
+	myDetectorX = -1; myDetectorY = -1; myDetectorRange = -1;
+	myProcessorX = -1; myProcessorY = -1; myProcessorRange = -1; myProcessorType = -1;
+	myBidX = -1; myBidY = -1; myBidPrice = -1;
+	otherBidX = -1; otherBidY = -1; otherBidPrice = -1;
+	otherDetectorX = -1; otherDetectorY = -1; otherDetectorRange = -1;
+	otherProcessorX = -1; otherProcessorY = -1; otherProcessorRange = -1; otherProcessorType = -1;
+	myDetectorCheckPos.clear();
+	myDetectorCheckPollution.clear();
+	profitPos.clear();
 }
 
 void State::Debug(FILE* fp){
@@ -105,6 +116,56 @@ void State::Debug(FILE* fp){
 				processors[i].pos.first, processors[i].pos.second,
 				processors[i].rangeType, processors[i].processingType,
 				processors[i].owner);
+	}
+	fprintf(fp, "----log----\n");
+	if(tipsterX != -1){
+		fprintf(fp, "tipster: (%d, %d)\n", tipsterX, tipsterY);
+		if(tipsterCheckX != -1){
+			fprintf(fp, "tipsterCheck: (%d, %d), pollution = %d\n", tipsterCheckX, tipsterCheckY,
+					tipsterCheckPollution);
+		}else{
+			fprintf(fp, "tipsterCheck: (None, None) None\n");
+		}
+	}
+	if(myDetectorX != -1){
+		fprintf(fp, "myDetector: (%d, %d), range = %d\n", myDetectorX, myDetectorY,
+				myDetectorRange);
+		fprintf(fp, "myDetectorCheck: \n");
+		int sz = myDetectorCheckPos.size();
+		if(sz == 0)fprintf(fp, "    None\n");
+		else{
+			for(int i = 0; i < sz; ++i){
+				fprintf(fp, "    (%d, %d), pollution = %d\n", myDetectorCheckPos[i].first,
+						myDetectorCheckPos[i].second, myDetectorCheckPollution[i]);
+			}
+		}
+	}
+	if(myProcessorX != -1){
+		fprintf(fp, "myProcessor: (%d, %d), range = %d, type = %d\n", myProcessorX,
+				myProcessorY, myProcessorRange, myProcessorType);
+		fprintf(fp, "profitPos: \n");
+		int sz = profitPos.size();
+		if(sz == 0)fprintf(fp, "    None\n");
+		else{
+			for(int i = 0; i < sz; ++i){
+				fprintf(fp, "    (%d, %d)\n", profitPos[i].first, profitPos[i].second);
+			}
+		}
+	}
+	if(myBidX != -1){
+		fprintf(fp, "myBid: (%d, %d), bidPrice = %d\n", myBidX, myBidY, myBidPrice);
+	}
+	if(otherBidX != -1){
+		fprintf(fp, "otherBid: (%d, %d), bidPrice = %d\n", otherBidX, 
+				otherBidY, otherBidPrice);
+	}
+	if(otherDetectorX != -1){
+		fprintf(fp, "otherDetector: (%d, %d), range = %d\n", otherDetectorX,
+				otherDetectorY, otherDetectorRange);
+	}
+	if(otherProcessorX != -1){
+		fprintf(fp, "otherProcessor: (%d, %d), range = %d, type = %d\n", otherProcessorX,
+				otherProcessorY, otherProcessorRange, otherProcessorType);
 	}
 	fprintf(fp, "============State   end=============\n\n");
 	fflush(fp);
@@ -217,7 +278,7 @@ bool Client::init(){
 	}
 	return true;
 }
-bool Client::stateInfo(FILE* fp){
+bool Client::stateInfo(){
 	std::string stateStr = read();
 	root.clear();
 	if(!reader.parse(stateStr, root))return false;
@@ -232,7 +293,6 @@ bool Client::stateInfo(FILE* fp){
 			state->pollution[i][j] = root["pollution"][i][j].asInt();
 		}
 	}
-	fflush(fp);
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			Json::Value tmp = root["lands"][i][j];
@@ -262,9 +322,65 @@ bool Client::stateInfo(FILE* fp){
 					  tmp["rangeType"].asInt(), tmp["processingType"].asInt(), 
 					  tmp["owner"].asInt()));
 	}
+	sz = root["log"].size();
+	for(int i = 0; i < sz; ++i){
+		Json::Value tmp = root["log"][i];
+		switch(tmp[0].asInt()){
+			case 0:
+				state->tipsterX = tmp[1][0].asInt();
+				state->tipsterY = tmp[1][1].asInt();
+				break;
+			case 1:
+				state->tipsterCheckX = tmp[1][0].asInt();
+				state->tipsterCheckY = tmp[1][1].asInt();
+				state->tipsterCheckPollution = tmp[2].asInt();
+				break;
+			case 2:
+				state->myDetectorX = tmp[1][0].asInt();
+				state->myDetectorY = tmp[1][1].asInt();
+				state->myDetectorRange = tmp[2].asInt();
+				break;
+			case 3:
+				state->myDetectorCheckPos.push_back(std::make_pair(tmp[1][0].asInt(), tmp[1][1].asInt()));
+				state->myDetectorCheckPollution.push_back(tmp[2].asInt());
+				break;
+			case 4:
+				state->myProcessorX = tmp[1][0].asInt();
+				state->myProcessorY = tmp[1][1].asInt();
+				state->myProcessorRange = tmp[2].asInt();
+				state->myProcessorType = tmp[3].asInt();
+				break;
+			case 5:
+				state->profitPos.push_back(std::make_pair(tmp[1][0].asInt(), tmp[1][1].asInt()));
+				break;
+			case 6:
+				state->myBidX = tmp[1][0].asInt();
+				state->myBidY = tmp[1][1].asInt();
+				state->myBidPrice = tmp[2].asInt();
+				break;
+			case 7:
+				state->otherBidX = tmp[1][0].asInt();
+				state->otherBidY = tmp[1][1].asInt();
+				state->otherBidPrice = tmp[2].asInt();
+				break;
+			case 8:
+				state->otherDetectorX = tmp[1][0].asInt();
+				state->otherDetectorY = tmp[1][1].asInt();
+				state->otherDetectorRange = tmp[2].asInt();
+				break;
+			case 9:
+				state->otherProcessorX = tmp[1][0].asInt();
+				state->otherProcessorY = tmp[1][1].asInt();
+				state->otherProcessorRange = tmp[2].asInt();
+				state->otherProcessorType = tmp[3].asInt();
+				break;
+			default:
+				break;
+		}
+	}
 	return true;
 }
-void Client::sendOpt(FILE* fp){
+void Client::sendOpt(){
 	root.clear();
 	if(opt->tipsterX != -1 || opt->tipsterY != -1){
 		root["tipster"]["pos"][0] = opt->tipsterX;

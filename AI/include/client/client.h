@@ -75,6 +75,19 @@ public:
     Land lands[WIDTH][HEIGHT];
     std::vector<Detector>detectors;
     std::vector<Processor>processors;
+
+    int tipsterX, tipsterY;
+    int tipsterCheckX, tipsterCheckY, tipsterCheckPollution;
+    int myDetectorX, myDetectorY, myDetectorRange;
+    int myProcessorX, myProcessorY, myProcessorRange, myProcessorType;
+    int myBidX, myBidY, myBidPrice;
+    int otherBidX, otherBidY, otherBidPrice;
+    int otherDetectorX, otherDetectorY, otherDetectorRange;
+    int otherProcessorX, otherProcessorY, otherProcessorRange, otherProcessorType;
+    std::vector<std::pair<int,int>>myDetectorCheckPos;
+    std::vector<int>myDetectorCheckPollution;
+    std::vector<std::pair<int,int>>profitPos;
+    
     State();
     ~State();
     void clear();
@@ -112,8 +125,8 @@ public:
 	Client();
 	~Client();
 	bool init();
-	bool stateInfo(FILE*);
-	void sendOpt(FILE*);
+	bool stateInfo();
+	void sendOpt();
 private:
 	Json::Value root;
 	Json::Reader reader;
