@@ -364,7 +364,7 @@ def main():
         # 向AI发送当前的局面信息
         sendRoundState(AI, round)
         # 等待并接收AI的操作信息
-        time.sleep(2)
+        time.sleep(1)
         # 执行AI的操作消息
         msg = receiveMsg(AI)
         logForSDK[AI] = []
@@ -394,6 +394,7 @@ def main():
             break
 
     # 保存录像文件
+    print("%d %d" % (Scores[0], Scores[1]))
     fo = open("replay.json", "w")
     fo.write(json.dumps(log))
     fo.close()

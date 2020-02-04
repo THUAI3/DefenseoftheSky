@@ -16,7 +16,7 @@ BuildingMap = np.load("Buildings.npy")
 PollutionComponentNum = 3
 
 # 最大回合数 要求一定是偶数
-MaxRound = 100
+MaxRound = 120
 
 # 覆盖范围的种类数
 MaxRangeNum = 3
@@ -60,7 +60,7 @@ TipsterCost = 400
 PollutionProfit = [600,700,800]
 
 # 每个非高大建筑的格子是污染源的概率
-PollutionProbability = 0.3
+PollutionProbability = 0.35
 
 NotPolluted = (np.random.rand(MapWidth,MapHeight) > PollutionProbability)
 NotPolluted[BuildingMap] = True
@@ -102,7 +102,7 @@ for i in range(MapWidth):
 Scores = [0,0]
 
 # 初始金钱数量
-Moneys = [4000,4000]
+Moneys = [3500,3500]
 
 # 所有地皮的竞价与使用情况
 from Units import *

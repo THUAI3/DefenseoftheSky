@@ -10,11 +10,16 @@ const int dx[3][9] = {{0, 0, 0, 1, -1, 0, 0, 2, -2},
 const int dy[3][9] = {{0, 1, -1, 0, 0, 2, -2, 0, 0},
 				   {0, 1, -1, 0, 0, 1, -1, 1, -1},
 				   {0, 1, -1, 1, -1, 2, -2, 2, -2}};
+const int inf = 0x7fffffff;
 
 /*
 	参数
 */
 const double rate = 0.4;
+
+const double interval1 = 0.9;
+const double interval2 = 0.5;
+const double speedUpProbability = 0.2;
 
 /*
 	初始化
@@ -22,6 +27,8 @@ const double rate = 0.4;
 std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];
 bool buildingsMap[WIDTH][HEIGHT];
 int expectProfit = 0;
+int baseMoney = 0;
+FILE *fp;
 
 /*
 	回合更新
@@ -38,6 +45,10 @@ std::vector<std::pair<int,int>>myLands;
 /*
 	计算用变量
 */
+double bidValueMap[WIDTH][HEIGHT];
+double bidMaxValueMap[WIDTH][HEIGHT];
+double bidMyValueMap[WIDTH][HEIGHT];
+int bidPollutionMap[WIDTH][HEIGHT];
 
 bool checkInMap(int x, int y){
 	return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
@@ -68,6 +79,14 @@ int getBitCount(int bit){
 		if(bit&1)ans++;
 		bit >>= 1;
 	}return ans;
+}
+
+int getLegalLandPrice(double price, int Base){
+	return (int)(price/Base)*Base;
+}
+
+double getRand(){//[0,1)精确到两位 伪随机
+	return (double)(rand()%100)/100.0;
 }
 
 void init(Parameters* parameters, State* state){
@@ -113,6 +132,20 @@ void init(Parameters* parameters, State* state){
 		expectProfit += tmp;
 	}
 	expectProfit = (int)(expectProfit/((1<<parameters->pollutionComponentNum)-1));
+	int maxRangeCost = -inf;
+	int maxTypeCost = -inf;
+	for(int i = 0; i < parameters->maxRangeNum; ++i){
+		maxRangeCost = getMax(maxRangeCost, parameters->processorRangeCost[i]);
+	}
+	for(int i = 0; i < parameters->pollutionComponentNum; ++i){
+		maxTypeCost = getMax(maxTypeCost, parameters->processorTypeCost[i]);
+	}
+	baseMoney = maxRangeCost+maxTypeCost;
+	maxRangeCost = -inf;
+	for(int i = 0; i < parameters->maxRangeNum; ++i){
+		maxRangeCost = getMax(maxRangeCost, parameters->detectorRangeCost[i]);
+	}
+	baseMoney += maxRangeCost;
 	return;
 }
 
@@ -207,7 +240,7 @@ void construct(Parameters* parameters, State* state, Operations* opt){
 	int ansRange = -1;
 	int ansType = -1;
 	int ansCost = -1;
-	double maxProfit = -1.0;
+	double maxProfit = -inf;
 	for(int i = 0; i < sz; ++i){
 		int x = myLands[i].first;
 		int y = myLands[i].second;
@@ -244,9 +277,200 @@ void construct(Parameters* parameters, State* state, Operations* opt){
 	}return;
 }
 
+void bid(Parameters* parameters, State* state, Operations* opt){
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			//消去自己的bid的影响
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].owner == -1 && state->lands[i][j].bidder == parameters->num){
+				myMoney -= state->lands[i][j].bid;
+			}
+		}
+	}
+
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			bidValueMap[i][j] = -inf;
+			bidMaxValueMap[i][j] = -inf;
+			bidMyValueMap[i][j] = -inf;
+			for(int range = 0; range < parameters->maxRangeNum; ++range){
+				int sz = control[i][j][range].size();
+				for(int type = 0; type < parameters->pollutionComponentNum; ++type){
+					int cost = parameters->processorRangeCost[range]+parameters->processorTypeCost[type];
+					double tmpValue = (double)(-cost);
+					double tmpMaxValue = tmpValue;
+					double tmpMyValue = tmpValue;
+					for(int index = 0; index < sz; ++index){
+						int nowX = control[i][j][range][index].first;
+						int nowY = control[i][j][range][index].second;
+						if(initialPollution[nowX][nowY] == 0)continue;
+						if(!((state->pollution[nowX][nowY]>>type)&1))continue;
+
+						double landProfit = parameters->pollutionProfit[type];
+						tmpMaxValue += landProfit;
+
+						int bitCount = getBitCount(state->pollution[nowX][nowY]);
+						bitCount--;
+						while(bitCount){landProfit *= rate; bitCount--;}
+						tmpValue += landProfit;
+
+						landProfit = (double)(getProfit(parameters, initialPollution[nowX][nowY]));
+						bitCount = getBitCount(state->pollution[nowX][nowY]);
+						bitCount--;
+						while(bitCount){landProfit *= rate; bitCount--;}
+						tmpMyValue += landProfit;
+					}
+					if(bidValueMap[i][j] < tmpValue)bidValueMap[i][j] = tmpValue;
+					if(bidMaxValueMap[i][j] < tmpMaxValue)bidMaxValueMap[i][j] = tmpMaxValue;
+					if(bidMyValueMap[i][j] < tmpMyValue)bidMyValueMap[i][j] = tmpMyValue;
+				}
+			}
+		}
+	}
+
+	fprintf(fp, "bidValueMap: \n");
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			fprintf(fp, "%.0lf ", bidValueMap[i][j]);
+		}fprintf(fp, "\n");
+	}
+	fprintf(fp, "bidMaxValueMap: \n");
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			fprintf(fp, "%.0lf ", bidMaxValueMap[i][j]);
+		}fprintf(fp, "\n");
+	}
+	fprintf(fp, "bidMyValueMap: \n");
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			fprintf(fp, "%.0lf ", bidMyValueMap[i][j]);
+		}fprintf(fp, "\n");
+	}
+
+	int otherBidX = -1;
+	int otherBidY = -1;
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].owner == -1 && state->lands[i][j].bidOnly == -1){
+				if(state->lands[i][j].bidder == 1-parameters->num && state->lands[i][j].round == 1){
+					otherBidX = i;
+					otherBidY = j;
+				}
+			}
+		}
+	}
+
+	fprintf(fp, "myMoney = %d\n", myMoney);
+	bool optFlag = false;
+	if(otherBidX != -1){
+		int otherBidValue = getLegalLandPrice(bidValueMap[otherBidX][otherBidY], (int)(parameters->landPrice*0.1));
+		int otherBidMaxValue = getLegalLandPrice(bidValueMap[otherBidX][otherBidY], (int)(parameters->landPrice*0.1));
+		int otherBidPrice = state->lands[otherBidX][otherBidY].bid;
+		fprintf(fp, "otherBidValue = %d\n", otherBidValue);
+		fprintf(fp, "otherBidMaxValue = %d\n", otherBidMaxValue);
+		fprintf(fp, "otherBidPrice = %d\n", otherBidPrice);
+		if(otherBidPrice < otherBidValue){
+			int resultPrice;
+			if(getRand() < speedUpProbability)resultPrice = otherBidPrice;
+			else resultPrice = otherBidPrice+parameters->landPrice*0.1;
+			if(myMoney-resultPrice >= baseMoney){
+				optFlag = true;
+				myMoney -= resultPrice;
+				opt->setBid(otherBidX, otherBidY, resultPrice);
+			}
+		}else if(otherBidPrice < otherBidMaxValue){
+			double p = 1.0;
+			int tmp = (otherBidMaxValue-otherBidValue)/(parameters->landPrice*0.1);
+			while(tmp > 0){p *= interval1; tmp--;}
+			int resultPrice = -1;
+			if(getRand() < p)resultPrice = otherBidPrice+parameters->landPrice*0.1;
+			if(resultPrice != -1 && myMoney-resultPrice >= baseMoney){
+				optFlag = true;
+				myMoney -= resultPrice;
+				opt->setBid(otherBidX, otherBidY, resultPrice);
+			}
+		}else{
+			double p = 1.0;
+			int tmp = (otherBidMaxValue-otherBidValue)/(parameters->landPrice*0.1);
+			while(tmp > 0){p *= interval1; tmp--;}
+			tmp = (otherBidPrice-otherBidMaxValue)/(parameters->landPrice*0.1);
+			while(tmp > 0){p *= interval2; tmp--;}
+			int resultPrice = -1;
+			if(getRand() < p)resultPrice = otherBidPrice+parameters->landPrice*0.1;
+			if(resultPrice != -1 && myMoney-resultPrice >= baseMoney){
+				optFlag = true;
+				myMoney -= resultPrice;
+				opt->setBid(otherBidX, otherBidY, resultPrice);
+			}
+		}
+	}
+	if(!optFlag){
+		int bidX = -1;
+		int bidY = -1;
+		int maxAns = -inf;
+		for(int i = 0; i < WIDTH; ++i){
+			for(int j = 0; j < HEIGHT; ++j){
+				if(state->lands[i][j].owner == -1 && state->lands[i][j].bidOnly != 1-parameters->num){
+					int baseBidPrice = -1;
+					if(state->lands[i][j].bidder == parameters->num)continue;
+					if(state->lands[i][j].bidder == -1)baseBidPrice = parameters->landPrice;
+					else baseBidPrice = state->lands[i][j].bid+parameters->landPrice*0.1;
+					int v = bidMyValueMap[i][j]+(bidValueMap[i][j]-baseBidPrice);
+					if(v > maxAns){
+						maxAns = v;
+						bidX = i;
+						bidY = j;
+					}
+				}
+			}
+		}
+		fprintf(fp, "bidX = %d\n", bidX);
+		fprintf(fp, "bidY = %d\n", bidY);
+		if(bidX != -1){
+			fprintf(fp, "bidPrice = %d\n", state->lands[bidX][bidY].bid);
+			int resultPrice = -1;
+			if(state->lands[bidX][bidY].bidder == -1)resultPrice = parameters->landPrice;
+			else resultPrice = state->lands[bidX][bidY].bid+parameters->landPrice*0.1;
+			if(myMoney-resultPrice >= baseMoney){
+				if(resultPrice < bidValueMap[bidX][bidY]){
+					optFlag = true;
+					myMoney -= resultPrice;
+					opt->setBid(bidX, bidY, resultPrice);
+				}else if(resultPrice < bidMaxValueMap[bidX][bidY]){
+					double p = 1.0;
+					int tmp = (bidMaxValueMap[bidX][bidY]-bidValueMap[bidX][bidY])/(parameters->landPrice*0.1);
+					while(tmp >= 0){p *= interval1; tmp--;}
+					if(getRand() < p){
+						optFlag = true;
+						myMoney -= resultPrice;
+						opt->setBid(bidX, bidY, resultPrice);
+					}
+				}else{
+					double p = 1.0;
+					int tmp = (bidMaxValueMap[bidX][bidY]-bidValueMap[bidX][bidY])/(parameters->landPrice*0.1);
+					while(tmp >= 0){p *= interval1; tmp--;}
+					tmp = (resultPrice-bidMaxValueMap[bidX][bidY])/(parameters->landPrice*0.1);
+					while(tmp >= 0){p *= interval2; tmp--;}
+					if(getRand() < p){
+						optFlag = true;
+						myMoney -= resultPrice;
+						opt->setBid(bidX, bidY, resultPrice);
+					}
+				}
+			}
+		}
+	}
+	fflush(fp);
+	return;
+}
+
 void getOperations(Parameters* parameters,
 				   State* state,
-				   Operations* opt){
+				   Operations* opt,
+				   FILE* f){
 	/*
 	@parameters 
 		member variables(public):
@@ -313,30 +537,16 @@ void getOperations(Parameters* parameters,
 		]
 	*/
 	stateNum++;
-	if(stateNum == 1)init(parameters, state);
+	if(stateNum == 1){
+		init(parameters, state);
+		fp = f;
+	}
 	updateState(parameters, state);
 	construct(parameters, state, opt);
+	bid(parameters, state, opt);
+
 	int x, y, range;
 	int cnt = 0;
-	int bidPrice = -1;
-	while(true){
-		x = rand()%WIDTH;
-		y = rand()%HEIGHT;
-		if(state->lands[x][y].owner == -1 &&
-		   state->lands[x][y].bidOnly != 1-parameters->num &&
-		   state->lands[x][y].bidder != parameters->num){
-			if(state->lands[x][y].bidder == -1)bidPrice = parameters->landPrice;
-			else{
-				bidPrice = state->lands[x][y].bid+parameters->landPrice*0.1;
-			}
-			break;
-		}
-		++cnt;
-		if(cnt >= 10)break;
-	}
-	if(bidPrice != -1)opt->setBid(x, y, bidPrice);
-
-	cnt = 0;
 	while(true){
 		x = rand()%WIDTH;
 		y = rand()%HEIGHT;

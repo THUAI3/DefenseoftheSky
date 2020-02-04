@@ -266,7 +266,7 @@ bool Client::init(){
 	}
 	sz = root["processorTypeCost"].size();
 	for(int i = 0; i < sz; ++i){
-		parameters->processorTypeCost.push_back(root["processorRangeCost"][i].asInt());
+		parameters->processorTypeCost.push_back(root["processorTypeCost"][i].asInt());
 	}
 	sz = root["detectorRangeCost"].size();
 	for(int i = 0; i < sz; ++i){
