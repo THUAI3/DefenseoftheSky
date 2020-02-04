@@ -12,13 +12,241 @@ const int dy[3][9] = {{0, 1, -1, 0, 0, 2, -2, 0, 0},
 				   {0, 1, -1, 1, -1, 2, -2, 2, -2}};
 
 /*
+	参数
+*/
+const double rate = 0.4;
+
+/*
+	初始化
+*/
+std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];
+bool buildingsMap[WIDTH][HEIGHT];
+int expectProfit = 0;
+
+/*
 	回合更新
 */
 int stateNum = 0;
+int otherStateProfit = 0;
+int otherExpectPollution = 0;
+int otherLastMoney;
+int myMoney;
+bool knowMap[WIDTH][HEIGHT];
+int initialPollution[WIDTH][HEIGHT];
+std::vector<std::pair<int,int>>myLands;
+
+/*
+	计算用变量
+*/
+
+bool checkInMap(int x, int y){
+	return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
+}
+
+int getAbs(int x){
+	return x > 0? x : -x;
+}
+
+int getMax(int x, int y){
+	return x > y? x : y;
+}
+
+int getDis(int a, int b, int x, int y){
+	return getAbs(a-x)+getAbs(b-y);
+}
+
+int getProfit(Parameters* parameters, int p){
+	int ans = 0;
+	for(int i = 0; i < parameters->pollutionComponentNum; ++i){
+		if((p>>i)&1)ans += parameters->pollutionProfit[i];
+	}return ans;
+}
+
+int getBitCount(int bit){
+	int ans = 0;
+	while(bit){
+		if(bit&1)ans++;
+		bit >>= 1;
+	}return ans;
+}
+
+void init(Parameters* parameters, State* state){
+	srand((unsigned)time(NULL));
+	for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)buildingsMap[i][j] = false;
+	int sz = parameters->buildings.size();
+	for(int i = 0; i < sz; ++i){
+		buildingsMap[parameters->buildings[i].first][parameters->buildings[i].second] = true;
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			for(int k = 0; k < MAXRANGENUM; ++k){
+				for(int index = 0; index < 9; ++index){
+					int x = i+dx[k][index];
+					int y = j+dy[k][index];
+					if(!checkInMap(x, y))continue;
+					if(buildingsMap[x][y])continue;
+					if(getMax(getAbs(dx[k][index]), getAbs(dy[k][index])) == 2 &&
+						buildingsMap[(i+x)>>1][(j+y)>>1])continue;
+					control[i][j][k].push_back(std::make_pair(x, y));
+				}
+			}
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(buildingsMap[i][j])knowMap[i][j] = true;
+			else if(state->pollution[i][j])knowMap[i][j] = true;
+			else knowMap[i][j] = false;
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			initialPollution[i][j] = state->pollution[i][j];
+		}
+	}
+	otherLastMoney = state->money[1-parameters->num];
+	for(int i = 1; i < (1<<parameters->pollutionComponentNum); ++i){
+		int tmp = 0;
+		for(int j = 0; j < parameters->pollutionComponentNum; ++j){
+			if((i>>j)&1)tmp += parameters->pollutionProfit[j];
+		}
+		expectProfit += tmp;
+	}
+	expectProfit = (int)(expectProfit/((1<<parameters->pollutionComponentNum)-1));
+	return;
+}
+
+void updateState(Parameters* parameters, State* state){
+	if(state->myDetectorX != -1){
+		int x = state->myDetectorX;
+		int y = state->myDetectorY;
+		int range = state->myDetectorRange;
+		int sz = control[x][y][range].size();
+		for(int i = 0; i < sz; ++i){
+			knowMap[control[x][y][range][i].first][control[x][y][range][i].second] = true;
+		}
+		sz = state->myDetectorCheckPos.size();
+		for(int i = 0; i < sz; ++i){
+			x = state->myDetectorCheckPos[i].first;
+			y = state->myDetectorCheckPos[i].second;
+			initialPollution[x][y] = state->myDetectorCheckPollution[i];
+		}
+	}
+
+	int centerX = state->tipsterX;
+	int centerY = state->tipsterY;
+	if(centerX != -1){
+		int checkX = state->tipsterCheckX;
+		int checkY = state->tipsterCheckY;
+		int checkPollution = state->tipsterCheckPollution;
+		if(checkX != -1){
+			knowMap[checkX][checkY] = true;
+			initialPollution[checkX][checkY] = checkPollution;
+			int dis = getDis(centerX, centerY, checkX, checkY);
+			for(int i = 0; i < WIDTH; ++i){
+				for(int j = 0; j < HEIGHT; ++j){
+					if(getDis(i, j, centerX, centerY) < dis)knowMap[i][j] = true;
+				}
+			}
+		}else{
+			for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)knowMap[i][j] = true;
+		}
+	}
+
+	int sz = state->profitPos.size();
+	for(int i = 0; i < sz; ++i){
+		int x = state->profitPos[i].first;
+		int y = state->profitPos[i].second;
+		initialPollution[x][y] = 0;
+	}
+
+	otherStateProfit = 0;
+	if(state->otherProcessorX != -1){
+		int x = state->otherProcessorX;
+		int y = state->otherProcessorY;
+		int range = state->otherProcessorRange;
+		sz = control[x][y][range].size();
+		for(int i = 0; i < sz; ++i){
+			int controlX = control[x][y][range][i].first;
+			int controlY = control[x][y][range][i].second;
+			if(initialPollution[controlX][controlY] != 0 && state->pollution[controlX][controlY] == 0){
+				initialPollution[controlX][controlY] = 0;
+				otherExpectPollution++;
+				int profit = 0;
+				for(int j = 0; j < parameters->pollutionComponentNum; ++j){
+					if((initialPollution[controlX][controlY]>>j)&1)profit += parameters->pollutionProfit[j];
+				}
+				otherStateProfit += profit;
+			}
+		}
+		int tmp = state->money[1-parameters->num]-otherLastMoney-otherStateProfit;
+		if(tmp != 0){
+			if(tmp%expectProfit == 0)otherExpectPollution += (tmp/expectProfit);
+			else otherExpectPollution += ((int)(tmp/expectProfit)+1);
+		}
+	}
+
+	myLands.clear();
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].owner == parameters->num && !state->lands[i][j].occupied){
+				myLands.push_back(std::make_pair(i, j));
+			}
+		}
+	}
+
+	myMoney = state->money[parameters->num];
+	return;
+}
+
+void construct(Parameters* parameters, State* state, Operations* opt){
+	int sz = myLands.size();
+	if(sz == 0)return;
+	int ansX = -1;
+	int ansY = -1;
+	int ansRange = -1;
+	int ansType = -1;
+	int ansCost = -1;
+	double maxProfit = -1.0;
+	for(int i = 0; i < sz; ++i){
+		int x = myLands[i].first;
+		int y = myLands[i].second;
+		for(int range = 0; range < parameters->maxRangeNum; ++range){
+			for(int type = 0; type < parameters->pollutionComponentNum; ++type){
+				int cost = parameters->processorRangeCost[range]+parameters->processorTypeCost[type];
+				if(myMoney < cost)continue;
+				double tmp = (double)(-cost);
+				int lim = control[x][y][range].size();
+				for(int index = 0; index < lim; ++index){
+					int nowX = control[x][y][range][index].first;
+					int nowY = control[x][y][range][index].second;
+					if(initialPollution[nowX][nowY] == 0)continue;
+					if(!((state->pollution[nowX][nowY]>>type)&1))continue;
+					double landProfit = (double)(getProfit(parameters, initialPollution[nowX][nowY]));
+					int bitCount = getBitCount(state->pollution[nowX][nowY]);
+					bitCount--;
+					while(bitCount){landProfit *= rate; bitCount--;}
+					tmp += landProfit;
+				}
+				if(maxProfit < tmp){
+					maxProfit = tmp;
+					ansX = x; ansY = y;
+					ansRange = range;
+					ansType = type;
+					ansCost = cost;
+				}
+			}
+		}
+	}
+	if(ansX != -1){
+		opt->setProcessor(ansX, ansY, ansRange, ansType);
+		myMoney -= ansCost;
+	}return;
+}
 
 void getOperations(Parameters* parameters,
 				   State* state,
-				   Operations *opt){
+				   Operations* opt){
 	/*
 	@parameters 
 		member variables(public):
@@ -85,30 +313,10 @@ void getOperations(Parameters* parameters,
 		]
 	*/
 	stateNum++;
-	if(stateNum == 1)srand((unsigned)time(NULL));
-	int x = -1, y = -1;
-	for(int i = 0; i < WIDTH; ++i){
-		for(int j = 0; j < HEIGHT; ++j){
-			if(state->lands[i][j].owner == parameters->num && state->lands[i][j].occupied == 0){
-				x = i;
-				y = j;
-				break;
-			}
-		}
-	}
-	int range = rand()%parameters->maxRangeNum;
-	int pollutionComponent = rand()%parameters->pollutionComponentNum;
-	int money = state->money[parameters->num];
-	if(money >= parameters->processorTypeCost[pollutionComponent]
-										+parameters->processorRangeCost[range]){
-		int p = rand()%10;
-		if(p > 2){
-			opt->setProcessor(x, y, range, pollutionComponent);
-			money -= (parameters->processorTypeCost[pollutionComponent]
-										+parameters->processorRangeCost[range]);
-		}
-	}
-
+	if(stateNum == 1)init(parameters, state);
+	updateState(parameters, state);
+	construct(parameters, state, opt);
+	int x, y, range;
 	int cnt = 0;
 	int bidPrice = -1;
 	while(true){
@@ -141,13 +349,12 @@ void getOperations(Parameters* parameters,
 		if(p > 4){
 			range = rand()%parameters->maxRangeNum;
 			opt->setDetector(x, y, range);
-			money -= parameters->detectorRangeCost[range];
+			myMoney -= parameters->detectorRangeCost[range];
 		}
 	}
 
-	if(money >= 3000){
+	if(myMoney >= 3000){
 		int p = rand()%10;
 		if(p > 6)opt->setTipster(WIDTH>>1, HEIGHT>>1);
-	}
-	return;
+	}return;
 }

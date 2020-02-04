@@ -102,7 +102,7 @@ for i in range(MapWidth):
 Scores = [0,0]
 
 # 初始金钱数量
-Moneys = [10000,10000]
+Moneys = [4000,4000]
 
 # 所有地皮的竞价与使用情况
 from Units import *
