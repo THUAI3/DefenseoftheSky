@@ -16,6 +16,19 @@ log = {}
 logPerRound = []
 
 msgObj = {}
+'''
+[0, [x, y]] 己方情报贩子放置点 #
+[1, [x, y], pollution] 己方情报贩子检测点,检测污染气体 #
+[2, [x, y], range] 己方检测设备放置点，检测范围类型 #
+[3, [x, y], pollution] 己方检测设备检测出来的点,检测污染气体 #
+[4, [x, y], range, type] 己方治理设备放置点,治理范围,治理气体 #
+[5, [x, y]] 获取回报，回报点 #
+[6, [x, y], bidPrice] 己方标价点, 标价 #
+[7, [x, y], bidPrice] 对方标价点, 标价 #
+[8, [x, y], range] 对方放置检测设备点, 检测范围 #
+[9, [x, y], range, type] 对方放置治理设备点,治理范围,治理类型
+'''
+logForSDK = [[], []]
 
 # DEBUG
 
@@ -92,7 +105,7 @@ def sendInitState(AI):
                 initState['buildings'].append((i,j))
     sendMsg(json.dumps(initState), AI)
 
-def sendRoundState(AI):
+def sendRoundState(AI, round):
     pollutionM = PollutionMap0 if AI == 0 else PollutionMap1
     state = {
         'AI': AI,
@@ -102,6 +115,7 @@ def sendRoundState(AI):
         'scores': Scores,
         'detectors': [], # 所有场内的检测设备
         'processors': [], # 所有场内的处理设备
+        'log': logForSDK[AI],
         'errMsg':errMsg[AI],
     }
     errMsg[AI] = ''
@@ -115,7 +129,6 @@ def sendRoundState(AI):
 
     for processor in processors:
         state['processors'].append(processor.toJsonObj()) 
-        
     sendMsg(json.dumps(state), AI)
 
 def validate(msg, AI):
@@ -143,7 +156,7 @@ def validate(msg, AI):
     except:
         errMsg[AI] = "json can't decode msg str"
         return False
-    
+
     try:
         assert 'detector' in msgObj, "detector operation not found"
         assert (msgObj['detector'] is None) or ('pos' in msgObj['detector'] and 'rangeType' in msgObj['detector']), 'detector operation invalid'
@@ -188,6 +201,23 @@ def validate(msg, AI):
         return False
     return True
 
+def treatPollution(pro, AI):
+    pM = PollutionMap0 if AI == 0 else PollutionMap1
+    for i in range(MapWidth):
+        for j in range(MapHeight):
+            if pro.cover((i, j)) and pM[i][j]:
+                if ((pM[i][j] >> pro.processingType)&1):
+                    pM[i][j] -= (1 << pro.processingType)
+                    if pM[i][j] == 0:
+                        Moneys[AI] += int(PollutionProfitMap[i][j])
+                        Scores[AI] += int(PollutionProfitMap[i][j])
+                        PollutionMap0[i][j] = 0
+                        PollutionMap1[i][j] = 0
+                        PollutionMap[i][j] = 0
+                        logPerRound.append((10,AI,(i,j),(int)(PollutionProfitMap[i][j])))
+                        logForSDK[AI].append((5, (i, j)))
+
+
 def construct(operation,AI):
     if operation['processor'] is not None:
         pos = operation['processor']['pos']
@@ -196,48 +226,26 @@ def construct(operation,AI):
         if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
             land = Lands[pos[0]][pos[1]]
             if land.owner == AI and not land.occupied:
-                if 0<=rangeType and rangeType< MaxRangeNum and processingType and processingType<PollutionComponentNum:
+                if 0<=rangeType and rangeType< MaxRangeNum and 0<=processingType and processingType<PollutionComponentNum:
                     cost = ProcessorRangeCost[rangeType] + ProcessorTypeCost[processingType]
                     if Moneys[AI] >= cost:
                         Moneys[AI] -= cost
                         land.occupied = True
                         processors.append(Processor(tuple(pos),rangeType,processingType,AI))
                         logPerRound.append((1,AI,tuple(pos),rangeType,processingType))
+                        logForSDK[AI].append((4, tuple(pos), rangeType, processingType))
+                        logForSDK[1-AI].append((9, tuple(pos), rangeType, processingType))
+                        treatPollution(processors[-1], AI)
 
-def bid(operation, AI):
-    if operation['bid'] is not None:
-        pos = operation['bid']['pos']
-        bidPrice = operation['bid']['bidPrice']
-        if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
-            land = Lands[pos[0]][pos[1]]
-            if land.owner == -1 and (land.bidOnly == AI or land.bidOnly == -1) and land.bidder != AI and bidPrice > land.bid and bidPrice % int(0.1*LandPrice) == 0:
-                land.bid = bidPrice
-                land.bidder = AI
-                land.round = 6
-                logPerRound.append((2,AI,tuple(pos),bidPrice))
-                
-                
-def tipster(operation, AI):
-    if operation['tipster'] is not None:
-        pos = operation['tipster']['pos']
-        pM = PollutionMap0 if AI==0 else PollutionMap1
-        if Moneys[AI] >= TipsterCost:
-            Moneys[AI] -= TipsterCost
-        else:
-            return
-        if np.sum(PollutionMap-pM) == 0:
-            return
-        
-        deltaM = PollutionMap - pM
-        tmp = []
-        for i in range(MapWidth):
-            for j in range(MapHeight):
-                if deltaM[i][j] > 0:
-                    tmp.append((i,j))
-        tmp.sort(key=lambda x: abs(x[0]-pos[0])+abs(x[1]-pos[1]))
-        pM[tmp[0][0]][tmp[0][1]] = PollutionMap[tmp[0][0]][tmp[0][1]]
-        logPerRound.append((3, AI, tuple(pos)))
-        logPerRound.append((4, AI, tuple(tmp[0])))
+def checkPollution(det, AI):
+    pM = PollutionMap0 if AI == 0 else PollutionMap1
+    for i in range(MapWidth):
+        for j in range(MapHeight):
+            if det.cover((i, j)):
+                if PollutionMap[i][j] and pM[i][j] == 0:
+                    pM[i][j] = PollutionMap[i][j]
+                    logPerRound.append((7, AI, (i,j)))
+                    logForSDK[AI].append((3, (i, j), (int)(pM[i][j])))
 
 def launch(operation, AI):
     if operation['detector'] is not None:
@@ -250,41 +258,55 @@ def launch(operation, AI):
                     cost = DetectorRangeCost[rangeType]
                     if Moneys[AI] >= cost:
                         Moneys[AI] -= cost
-                        detectors.append(Detector(pos,rangeType,AI))
                         land.filled = True
-                        pM = PollutionMap0 if AI == 0 else PollutionMap1
-                        deltaM = PollutionMap - pM
-                        
+                        detectors.append(Detector(pos,rangeType,AI))
                         logPerRound.append((6, AI, tuple(pos)))
+                        logForSDK[AI].append((2, tuple(pos), rangeType))
+                        logForSDK[1-AI].append((8, tuple(pos), rangeType))
+                        checkPollution(detectors[-1], AI)
 
-                        for i in range(MapWidth):
-                            for j in range(MapHeight):
-                                if deltaM[i][j] > 0 and detectors[-1].cover((i,j)):
-                                    pM[i][j] = PollutionMap[i][j]
-                                    logPerRound.append((7, AI, (i,j)))
-                                
-                            
+def bid(operation, AI):
+    if operation['bid'] is not None:
+        pos = operation['bid']['pos']
+        bidPrice = operation['bid']['bidPrice']
+        if 0<=pos[0] and pos[0] <= MapWidth-1 and 0<=pos[1] and pos[1] <= MapHeight-1:
+            land = Lands[pos[0]][pos[1]]
+            if land.owner == -1 and (land.bidOnly == AI or land.bidOnly == -1) and land.bidder != AI and bidPrice > land.bid and bidPrice % int(0.1*LandPrice) == 0:
+                land.bid = bidPrice
+                land.bidder = AI
+                land.round = 6
+                logForSDK[AI].append((6, tuple(pos), bidPrice))
+                logForSDK[1-AI].append((7, tuple(pos), bidPrice))
+                logPerRound.append((2,AI,tuple(pos),bidPrice))
+                
+                
+def tipster(operation, AI):
+    if operation['tipster'] is not None:
+        pos = operation['tipster']['pos']
+        pM = PollutionMap0 if AI==0 else PollutionMap1
+        if Moneys[AI] >= TipsterCost:
+            Moneys[AI] -= TipsterCost
+        else:
+            return
+        deltaM = np.zeros_like(PollutionMap)
+        for i in range(MapWidth):
+            for j in range(MapHeight):
+                if PollutionMap[i][j] and pM[i][j] == 0:
+                    deltaM[i][j] = PollutionMap[i][j]
+        if np.sum(deltaM) == 0:
+            return
         
-def treatPollution(AI):
-    pM = PollutionMap0 if AI == 0 else PollutionMap1
-    for i in range(MapWidth):
-        for j in range(MapHeight):
-            if pM[i][j] > 0:
-                components = 0
-                for processor in processors:
-                    if processor.cover((i,j)):
-                        components |= 1 << processor.processingType
-                if (components & pM[i][j]) == pM[i][j]:
-                    profit = LandPrice
-                    for k in range(PollutionComponentNum):
-                        if pM[i][j] & (1<<k) == (1<<k):
-                            profit += PollutionProfit[k]
-                    Moneys[AI] += profit
-                    Scores[AI] += profit
-                    PollutionMap0[i][j] = 0
-                    PollutionMap1[i][j] = 0
-                    PollutionMap[i][j] = 0
-                    logPerRound.append((10,AI,(i,j),profit))
+        tmp = []
+        for i in range(MapWidth):
+            for j in range(MapHeight):
+                if deltaM[i][j] > 0:
+                    tmp.append((i,j))
+        tmp.sort(key=lambda x: abs(x[0]-pos[0])+abs(x[1]-pos[1]))
+        pM[tmp[0][0]][tmp[0][1]] = PollutionMap[tmp[0][0]][tmp[0][1]]
+        logPerRound.append((3, AI, tuple(pos)))
+        logForSDK[AI].append((0, tuple(pos)))
+        logPerRound.append((4, AI, tuple(tmp[0])))
+        logForSDK[AI].append((1, tuple(tmp[0]), (int)(pM[tmp[0][0]][tmp[0][1]])))
                 
 def bidUpdate():
     for i in range(MapWidth):
@@ -316,7 +338,7 @@ def endGame():
 
 
 def main():
-    global log,logPerRound,subpro
+    global log,logPerRound,subpro, logForSDK
     #启动进程
     try:
         subpro.append(subprocess.Popen(shlex.split(sys.argv[1]), stdout=subprocess.PIPE,\
@@ -340,13 +362,15 @@ def main():
     for round in range(MaxRound):
         AI = round % 2
         # 向AI发送当前的局面信息
-        sendRoundState(AI)
+        sendRoundState(AI, round)
         # 等待并接收AI的操作信息
-        time.sleep(2)
+        time.sleep(1)
         # 执行AI的操作消息
         msg = receiveMsg(AI)
+        logForSDK[AI] = []
 
         if validate(msg, AI):
+            # 为了降低AI难度，结算顺序如下：
             # 治理设备建造操作结算
             construct(msgObj,AI)
 
@@ -362,9 +386,6 @@ def main():
         # 地皮竞拍结果结算
         bidUpdate()
         
-        # 污染源治理结算
-        treatPollution(AI)
-        
         log[round] = logPerRound
         logPerRound = []
 
@@ -373,6 +394,10 @@ def main():
             break
 
     # 保存录像文件
+    print("%d %d" % (Scores[0], Scores[1]))
+    fo = open("replay.json", "w")
+    fo.write(json.dumps(log))
+    fo.close()
 
 
 if __name__ == '__main__':

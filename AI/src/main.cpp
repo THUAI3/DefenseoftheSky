@@ -13,15 +13,18 @@ int main(){
 #endif
 	while(true){
 		client->stateInfo();
+		client->opt->clear();
 #ifdef DEBUG
 		client->state->Debug(fp);
 #endif
-		getOperations(client->parameters, client->state, client->opt);
+		getOperations(client->parameters, client->state, client->opt, fp);
 #ifdef DEBUG
 		client->opt->Debug(fp);
 #endif
-		client->sendOpt(fp);
+		client->sendOpt();
 	}
+#ifdef DEBUG
 	fclose(fp);
+#endif
 	delete client;
 }
