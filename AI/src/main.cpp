@@ -17,7 +17,7 @@ int main(){
 #ifdef DEBUG
 		client->state->Debug(fp);
 #endif
-		getOperations(client->parameters, client->state, client->opt, fp);
+		getOperations(client->parameters, client->state, client->opt);
 #ifdef DEBUG
 		client->opt->Debug(fp);
 #endif

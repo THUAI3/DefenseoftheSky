@@ -33,7 +33,6 @@ std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];
 bool buildingsMap[WIDTH][HEIGHT];
 int expectProfit = 0;
 int baseMoney = 0;
-FILE *fp;
 
 /*
 	回合更新
@@ -46,6 +45,7 @@ int myExpectPollution = 0;
 int myMoney;
 bool knowMap[WIDTH][HEIGHT];
 int initialPollution[WIDTH][HEIGHT];
+bool hasPollution[WIDTH][HEIGHT];
 std::vector<std::pair<int,int>>myLands;
 
 /*
@@ -130,7 +130,10 @@ void init(Parameters* parameters, State* state){
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			initialPollution[i][j] = state->pollution[i][j];
-			if(initialPollution[i][j])++cnt;
+			if(initialPollution[i][j]){
+				++cnt;
+				hasPollution[i][j] = true;
+			}else hasPollution[i][j] = false;
 		}
 	}
 	pollutionSum = cnt*3;
@@ -174,6 +177,7 @@ void updateState(Parameters* parameters, State* state){
 			x = state->myDetectorCheckPos[i].first;
 			y = state->myDetectorCheckPos[i].second;
 			initialPollution[x][y] = state->myDetectorCheckPollution[i];
+			hasPollution[x][y] = true;
 		}
 	}
 
@@ -186,6 +190,7 @@ void updateState(Parameters* parameters, State* state){
 		if(checkX != -1){
 			knowMap[checkX][checkY] = true;
 			initialPollution[checkX][checkY] = checkPollution;
+			hasPollution[checkX][checkY] = true;
 			int dis = getDis(centerX, centerY, checkX, checkY);
 			for(int i = 0; i < WIDTH; ++i){
 				for(int j = 0; j < HEIGHT; ++j){
@@ -574,14 +579,77 @@ void detect(Parameters* parameters, State* state, Operations* opt){
 		}
 		p = p*sum;
 		p = p/baseExpected;
-		if(getRand() < p)opt->setDetector(detectorX, detectorY, detectorRange);
+		if(getRand() < p){
+			myMoney -= parameters->detectorRangeCost[detectorRange];
+			opt->setDetector(detectorX, detectorY, detectorRange);
+		}
 	}return;
+}
+
+void tipster(Parameters* parameters, State* state, Operations* opt){
+	if(myMoney-parameters->tipsterCost < baseMoney)return;
+	int maxRangeCost = -inf;
+	for(int i = 0; i < parameters->maxRangeNum; ++i){
+		maxRangeCost = getMax(maxRangeCost, parameters->detectorRangeCost[i]);
+	}
+	int e = (parameters->tipsterCost/maxRangeCost)*9;
+	int cnt = 0;
+	for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)if(!buildingsMap[i][j])++cnt;
+	double p = (double)(pollutionSum)/(double)(cnt);
+	int tipsterX = -1;
+	int tipsterY = -1;
+	int maxTipster = -1;
+	int unknownSum[WIDTH+HEIGHT];
+	int notBuildingSum[WIDTH+HEIGHT];
+	int pSum[WIDTH+HEIGHT];
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			int maxDis = -1;
+			for(int k = 0; k < WIDTH+HEIGHT; ++k){
+				unknownSum[k] = 0;
+				notBuildingSum[k] = 0;
+				pSum[k] = 0;
+			}
+			for(int x = 0; x < WIDTH; ++x){
+				for(int y = 0; y < HEIGHT; ++y){
+					int dis = getDis(i, j, x, y);
+					if(!knowMap[x][y])unknownSum[dis]++;
+					if(!buildingsMap[x][y])notBuildingSum[dis]++;
+					if(hasPollution[x][y])pSum[dis]++;
+					if(dis > maxDis)maxDis = dis;
+				}
+			}
+			int fz = 0, fm = 0;
+			int tmp = 0;
+			for(int k = 0; k <= maxDis; ++k){
+				fz += pSum[k];
+				fm += notBuildingSum[k];
+				tmp += unknownSum[k];
+				if(k >= 2){
+					if(fm == 0)continue;
+					double tmpP = (double)(fz)/(double)(fm);
+					if(tmpP > p){
+						if(tmp > maxTipster){
+							maxTipster = tmp;
+							tipsterX = i;
+							tipsterY = j;
+						}
+					}else {break;}
+				}
+			}
+		}
+	}
+	if(tipsterX != -1){
+		double judger = (double)(maxTipster)/(double)(e);
+		double roundP = (double)(stateNum << 1)/(double)(parameters->maxRoundNum);
+		if(getRand() < judger*roundP)opt->setTipster(tipsterX, tipsterY);
+	}
+	return;
 }
 
 void getOperations(Parameters* parameters,
 				   State* state,
-				   Operations* opt,
-				   FILE* f){
+				   Operations* opt){
 	/*
 	@parameters 
 		member variables(public):
@@ -650,16 +718,11 @@ void getOperations(Parameters* parameters,
 	stateNum++;
 	if(stateNum == 1){
 		init(parameters, state);
-		fp = f;
 	}
 	updateState(parameters, state);
 	construct(parameters, state, opt);
 	bid(parameters, state, opt);
 	detect(parameters, state, opt);
-
-	/*if(myMoney >= 3000){
-		int p = rand()%10;
-		if(p > 6)opt->setTipster(WIDTH>>1, HEIGHT>>1);
-	}*/
+	tipster(parameters, state, opt);
 	return;
 }
