@@ -17,13 +17,18 @@ const int inf = 0x7fffffff;
 */
 const double rate = 0.4;
 
-const double interval1 = 0.9;
-const double interval2 = 0.5;
+const double interval1 = 0.96;
+const double interval2 = 0.6;
 const double speedUpProbability = 0.2;
+
+const int isDetected = 54;
+const int isExpected = -9;
+const double baseExpected = 1.0;
 
 /*
 	初始化
 */
+int pollutionSum;
 std::vector<std::pair<int,int>>control[WIDTH][HEIGHT][MAXRANGENUM];
 bool buildingsMap[WIDTH][HEIGHT];
 int expectProfit = 0;
@@ -37,6 +42,7 @@ int stateNum = 0;
 int otherStateProfit = 0;
 int otherExpectPollution = 0;
 int otherLastMoney;
+int myExpectPollution = 0;
 int myMoney;
 bool knowMap[WIDTH][HEIGHT];
 int initialPollution[WIDTH][HEIGHT];
@@ -49,6 +55,8 @@ double bidValueMap[WIDTH][HEIGHT];
 double bidMaxValueMap[WIDTH][HEIGHT];
 double bidMyValueMap[WIDTH][HEIGHT];
 int bidPollutionMap[WIDTH][HEIGHT];
+int detectTmpMap[WIDTH][HEIGHT];
+int detectValueMap[WIDTH][HEIGHT][MAXRANGENUM];
 
 bool checkInMap(int x, int y){
 	return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
@@ -118,11 +126,14 @@ void init(Parameters* parameters, State* state){
 			else knowMap[i][j] = false;
 		}
 	}
+	int cnt = 0;
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			initialPollution[i][j] = state->pollution[i][j];
+			if(initialPollution[i][j])++cnt;
 		}
 	}
+	pollutionSum = cnt*3;
 	otherLastMoney = state->money[1-parameters->num];
 	for(int i = 1; i < (1<<parameters->pollutionComponentNum); ++i){
 		int tmp = 0;
@@ -187,6 +198,7 @@ void updateState(Parameters* parameters, State* state){
 	}
 
 	int sz = state->profitPos.size();
+	myExpectPollution += sz;
 	for(int i = 0; i < sz; ++i){
 		int x = state->profitPos[i].first;
 		int y = state->profitPos[i].second;
@@ -280,13 +292,48 @@ void construct(Parameters* parameters, State* state, Operations* opt){
 void bid(Parameters* parameters, State* state, Operations* opt){
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
-			//消去自己的bid的影响
+			bidPollutionMap[i][j] = state->pollution[i][j];
 		}
 	}
 	for(int i = 0; i < WIDTH; ++i){
 		for(int j = 0; j < HEIGHT; ++j){
 			if(state->lands[i][j].owner == -1 && state->lands[i][j].bidder == parameters->num){
 				myMoney -= state->lands[i][j].bid;
+				int ansRange = -1;
+				int ansType = -1;
+				int maxAns = -inf;
+				for(int range = 0; range < parameters->maxRangeNum; ++range){
+					for(int type = 0; type < parameters->pollutionComponentNum; ++type){
+						int cost = parameters->processorRangeCost[range]+parameters->processorTypeCost[type];
+						if(myMoney < cost)continue;
+						double tmp = (double)(-cost);
+						int sz = control[i][j][range].size();
+						for(int index = 0; index < sz; ++index){
+							int nowX = control[i][j][range][index].first;
+							int nowY = control[i][j][range][index].second;
+							if(initialPollution[nowX][nowY] == 0)continue;
+							if(!((bidPollutionMap[nowX][nowY]>>type)&1))continue;
+							double landProfit = (double)(getProfit(parameters, initialPollution[nowX][nowY]));
+							int bitCount = getBitCount(bidPollutionMap[nowX][nowY]);
+							bitCount--;
+							while(bitCount){landProfit *= rate; bitCount--;}
+							tmp += landProfit;
+						}
+						if(maxAns < tmp){
+							maxAns = tmp;
+							ansRange = range;
+							ansType = type;
+						}
+					}
+				}
+				int sz = control[i][j][ansRange].size();
+				for(int index = 0; index < sz; ++index){
+					int nowX = control[i][j][ansRange][index].first;
+					int nowY = control[i][j][ansRange][index].second;
+					if(initialPollution[nowX][nowY] == 0)continue;
+					if(!((bidPollutionMap[nowX][nowY]>>ansType)&1))continue;
+					bidPollutionMap[nowX][nowY] -= (1<<ansType);
+				}
 			}
 		}
 	}
@@ -307,18 +354,18 @@ void bid(Parameters* parameters, State* state, Operations* opt){
 						int nowX = control[i][j][range][index].first;
 						int nowY = control[i][j][range][index].second;
 						if(initialPollution[nowX][nowY] == 0)continue;
-						if(!((state->pollution[nowX][nowY]>>type)&1))continue;
+						if(!((bidPollutionMap[nowX][nowY]>>type)&1))continue;
 
 						double landProfit = parameters->pollutionProfit[type];
 						tmpMaxValue += landProfit;
 
-						int bitCount = getBitCount(state->pollution[nowX][nowY]);
+						int bitCount = getBitCount(bidPollutionMap[nowX][nowY]);
 						bitCount--;
 						while(bitCount){landProfit *= rate; bitCount--;}
 						tmpValue += landProfit;
 
 						landProfit = (double)(getProfit(parameters, initialPollution[nowX][nowY]));
-						bitCount = getBitCount(state->pollution[nowX][nowY]);
+						bitCount = getBitCount(bidPollutionMap[nowX][nowY]);
 						bitCount--;
 						while(bitCount){landProfit *= rate; bitCount--;}
 						tmpMyValue += landProfit;
@@ -329,25 +376,6 @@ void bid(Parameters* parameters, State* state, Operations* opt){
 				}
 			}
 		}
-	}
-
-	fprintf(fp, "bidValueMap: \n");
-	for(int i = 0; i < WIDTH; ++i){
-		for(int j = 0; j < HEIGHT; ++j){
-			fprintf(fp, "%.0lf ", bidValueMap[i][j]);
-		}fprintf(fp, "\n");
-	}
-	fprintf(fp, "bidMaxValueMap: \n");
-	for(int i = 0; i < WIDTH; ++i){
-		for(int j = 0; j < HEIGHT; ++j){
-			fprintf(fp, "%.0lf ", bidMaxValueMap[i][j]);
-		}fprintf(fp, "\n");
-	}
-	fprintf(fp, "bidMyValueMap: \n");
-	for(int i = 0; i < WIDTH; ++i){
-		for(int j = 0; j < HEIGHT; ++j){
-			fprintf(fp, "%.0lf ", bidMyValueMap[i][j]);
-		}fprintf(fp, "\n");
 	}
 
 	int otherBidX = -1;
@@ -363,15 +391,11 @@ void bid(Parameters* parameters, State* state, Operations* opt){
 		}
 	}
 
-	fprintf(fp, "myMoney = %d\n", myMoney);
 	bool optFlag = false;
 	if(otherBidX != -1){
 		int otherBidValue = getLegalLandPrice(bidValueMap[otherBidX][otherBidY], (int)(parameters->landPrice*0.1));
 		int otherBidMaxValue = getLegalLandPrice(bidValueMap[otherBidX][otherBidY], (int)(parameters->landPrice*0.1));
 		int otherBidPrice = state->lands[otherBidX][otherBidY].bid;
-		fprintf(fp, "otherBidValue = %d\n", otherBidValue);
-		fprintf(fp, "otherBidMaxValue = %d\n", otherBidMaxValue);
-		fprintf(fp, "otherBidPrice = %d\n", otherBidPrice);
 		if(otherBidPrice < otherBidValue){
 			int resultPrice;
 			if(getRand() < speedUpProbability)resultPrice = otherBidPrice;
@@ -427,10 +451,7 @@ void bid(Parameters* parameters, State* state, Operations* opt){
 				}
 			}
 		}
-		fprintf(fp, "bidX = %d\n", bidX);
-		fprintf(fp, "bidY = %d\n", bidY);
 		if(bidX != -1){
-			fprintf(fp, "bidPrice = %d\n", state->lands[bidX][bidY].bid);
 			int resultPrice = -1;
 			if(state->lands[bidX][bidY].bidder == -1)resultPrice = parameters->landPrice;
 			else resultPrice = state->lands[bidX][bidY].bid+parameters->landPrice*0.1;
@@ -463,8 +484,98 @@ void bid(Parameters* parameters, State* state, Operations* opt){
 			}
 		}
 	}
-	fflush(fp);
 	return;
+}
+
+void detect(Parameters* parameters, State* state, Operations* opt){
+	if(myMoney < baseMoney)return;
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(knowMap[i][j])detectTmpMap[i][j] = isDetected;
+			else detectTmpMap[i][j] = 0;
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].owner == -1 && state->lands[i][j].bidOnly == -1 
+				&& state->lands[i][j].bidder != -1){
+				for(int range = 0; range < parameters->maxRangeNum; ++range){
+					int sz = control[i][j][range].size();
+					for(int index = 0; index < sz; ++index){
+						int x = control[i][j][range][index].first;
+						int y = control[i][j][range][index].second;
+						if(knowMap[x][y])continue;
+						detectTmpMap[x][y] += isExpected;
+					}
+				}
+			}
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].filled)continue;
+			for(int range = 0; range < parameters->maxRangeNum; ++range){
+				int sz = control[i][j][range].size();
+				for(int index = 0; index < sz; ++index){
+					int x = control[i][j][index].size();
+					int y = control[i][j][index].size();
+					if(knowMap[x][y])continue;
+					detectTmpMap[x][y]++;
+				}
+			}
+		}
+	}
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].filled)continue;
+			for(int range = 0; range < parameters->maxRangeNum; ++range){
+				int sz = control[i][j][range].size();
+				detectValueMap[i][j][range] = (9-sz)*isDetected;
+				for(int index = 0; index < sz; ++index){
+					int x = control[i][j][index].size();
+					int y = control[i][j][index].size();
+					detectValueMap[i][j][range] += detectTmpMap[x][y];
+				}
+			}
+		}
+	}
+	int maxValue = -inf;
+	int detectorX = -1;
+	int detectorY = -1;
+	int detectorRange = -1;
+	for(int i = 0; i < WIDTH; ++i){
+		for(int j = 0; j < HEIGHT; ++j){
+			if(state->lands[i][j].filled)continue;
+			for(int range = 0; range < parameters->maxRangeNum; ++range){
+				if(detectValueMap[i][j][range] > maxValue){
+					maxValue = detectValueMap[i][j][range];
+					detectorX = i;
+					detectorY = j;
+					detectorRange = range;
+				}
+			}
+		}
+	}
+	if(detectorX != -1){
+		int sum = 0;
+		for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)if(!knowMap[i][j])++sum;
+		int pollutionNum = 0;
+		for(int i = 0; i < WIDTH; ++i)for(int j = 0; j < HEIGHT; ++j)if(state->pollution[i][j])++pollutionNum;
+		pollutionNum += myExpectPollution;
+		pollutionNum += otherExpectPollution;
+		pollutionNum = pollutionSum-pollutionNum;
+		double p = (double)(pollutionNum)/(double)(sum);
+		sum = 0;
+		int sz = control[detectorX][detectorY][detectorRange].size();
+		for(int i = 0; i < sz; ++i){
+			int x = control[detectorX][detectorY][detectorRange][i].first;
+			int y = control[detectorX][detectorY][detectorRange][i].second;
+			if(!knowMap[x][y])++sum;
+		}
+		p = p*sum;
+		p = p/baseExpected;
+		if(getRand() < p)opt->setDetector(detectorX, detectorY, detectorRange);
+	}return;
 }
 
 void getOperations(Parameters* parameters,
@@ -544,27 +655,11 @@ void getOperations(Parameters* parameters,
 	updateState(parameters, state);
 	construct(parameters, state, opt);
 	bid(parameters, state, opt);
+	detect(parameters, state, opt);
 
-	int x, y, range;
-	int cnt = 0;
-	while(true){
-		x = rand()%WIDTH;
-		y = rand()%HEIGHT;
-		if(!state->lands[x][y].filled)break;
-		cnt++;
-		if(cnt >= 10)break;
-	}
-	if(!state->lands[x][y].filled){
-		int p = rand()%10;
-		if(p > 4){
-			range = rand()%parameters->maxRangeNum;
-			opt->setDetector(x, y, range);
-			myMoney -= parameters->detectorRangeCost[range];
-		}
-	}
-
-	if(myMoney >= 3000){
+	/*if(myMoney >= 3000){
 		int p = rand()%10;
 		if(p > 6)opt->setTipster(WIDTH>>1, HEIGHT>>1);
-	}return;
+	}*/
+	return;
 }
