@@ -274,6 +274,7 @@ def tipster(operation, AI):
         pM = PollutionMap0 if AI==0 else PollutionMap1
         if Moneys[AI] >= TipsterCost:
             Moneys[AI] -= TipsterCost
+            logPerRound.append((3, AI, tuple(pos)))
         else:
             return
         deltaM = np.zeros_like(PollutionMap)
@@ -291,7 +292,6 @@ def tipster(operation, AI):
                     tmp.append((i,j))
         tmp.sort(key=lambda x: abs(x[0]-pos[0])+abs(x[1]-pos[1]))
         pM[tmp[0][0]][tmp[0][1]] = PollutionMap[tmp[0][0]][tmp[0][1]]
-        logPerRound.append((3, AI, tuple(pos)))
         logForSDK[AI].append((0, tuple(pos)))
         logPerRound.append((4, AI, tuple(tmp[0])))
         logForSDK[AI].append((1, tuple(tmp[0]), (int)(pM[tmp[0][0]][tmp[0][1]])))
