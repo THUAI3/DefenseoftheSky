@@ -16,18 +16,6 @@ log = {}
 logPerRound = []
 
 msgObj = {}
-'''
-[0, [x, y]] 己方情报贩子放置点 #
-[1, [x, y], pollution] 己方情报贩子检测点,检测污染气体 #
-[2, [x, y], range] 己方检测设备放置点，检测范围类型 #
-[3, [x, y], pollution] 己方检测设备检测出来的点,检测污染气体 #
-[4, [x, y], range, type] 己方治理设备放置点,治理范围,治理气体 #
-[5, [x, y]] 获取回报，回报点 #
-[6, [x, y], bidPrice] 己方标价点, 标价 #
-[7, [x, y], bidPrice] 对方标价点, 标价 #
-[8, [x, y], range] 对方放置检测设备点, 检测范围 #
-[9, [x, y], range, type] 对方放置治理设备点,治理范围,治理类型
-'''
 logForSDK = [[], []]
 
 # DEBUG
@@ -244,7 +232,7 @@ def checkPollution(det, AI):
             if det.cover((i, j)):
                 if PollutionMap[i][j] and pM[i][j] == 0:
                     pM[i][j] = PollutionMap[i][j]
-                    logPerRound.append((7, AI, (i,j)))
+                    logPerRound.append((6, AI, (i,j)))
                     logForSDK[AI].append((3, (i, j), (int)(pM[i][j])))
 
 def launch(operation, AI):
@@ -260,7 +248,7 @@ def launch(operation, AI):
                         Moneys[AI] -= cost
                         land.filled = True
                         detectors.append(Detector(pos,rangeType,AI))
-                        logPerRound.append((6, AI, tuple(pos)))
+                        logPerRound.append((5, AI, tuple(pos), rangeType))
                         logForSDK[AI].append((2, tuple(pos), rangeType))
                         logForSDK[1-AI].append((8, tuple(pos), rangeType))
                         checkPollution(detectors[-1], AI)
