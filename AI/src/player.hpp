@@ -522,8 +522,8 @@ void detect(Parameters* parameters, State* state, Operations* opt){
 			for(int range = 0; range < parameters->maxRangeNum; ++range){
 				int sz = control[i][j][range].size();
 				for(int index = 0; index < sz; ++index){
-					int x = control[i][j][index].size();
-					int y = control[i][j][index].size();
+					int x = control[i][j][range][index].first;
+					int y = control[i][j][range][index].second;
 					if(knowMap[x][y])continue;
 					detectTmpMap[x][y]++;
 				}
@@ -537,8 +537,8 @@ void detect(Parameters* parameters, State* state, Operations* opt){
 				int sz = control[i][j][range].size();
 				detectValueMap[i][j][range] = (9-sz)*isDetected;
 				for(int index = 0; index < sz; ++index){
-					int x = control[i][j][index].size();
-					int y = control[i][j][index].size();
+					int x = control[i][j][range][index].first;
+					int y = control[i][j][range][index].second;
 					detectValueMap[i][j][range] += detectTmpMap[x][y];
 				}
 			}
