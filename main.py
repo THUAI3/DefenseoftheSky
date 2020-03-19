@@ -58,8 +58,8 @@ def receiveMsg(AI):
         dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
         data = readBuffer.read(dataLen)
     except:
-        Scores[AI] = -1
-        Scores[1-AI] = 0
+        Scores[AI] = 0
+        Scores[1-AI] = 1
         gameEnd()
     return data
 
@@ -392,8 +392,8 @@ def main():
         try:
             msg = receiveMsg(AI)
         except Exception as e:
-            Scores[AI] = -1
-            Scores[1-AI] = 0
+            Scores[AI] = 0
+            Scores[1-AI] = 1
             gameEnd()
         logForSDK[AI] = []
         if validate(msg, AI):
