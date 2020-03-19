@@ -4,6 +4,8 @@ import json
 import time
 import shlex
 import subprocess
+import asyncio
+import signal
 
 detectors = []
 processors = []
@@ -20,6 +22,19 @@ logForSDK = [[], []]
 
 # DEBUG
 
+def time_limit(interval):
+    def wraps(func):
+        def handler():
+            raise RuntimeError()
+        def deco(*args, **kwargs):
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(interval)
+            res = func(*args, **kwargs)
+            signal.alarm(0)
+            return res
+        return deco
+    return wraps
+
 def convertByte(jsonStr):
     msgLen = len(jsonStr)
     msg = msgLen.to_bytes(4, byteorder='big', signed=True)
@@ -28,17 +43,24 @@ def convertByte(jsonStr):
 
 def sendMsg(jsonStr, goal):
     jsonObj = json.loads(jsonStr)
-    #print("======== Send To %d ========" % jsonObj['AI'])
-    #print(json.dumps(jsonObj, sort_keys=True, indent=4, separators=(',', ': ')))
-    #print("============================")
-    #print("goal = %d" % goal)
-    subpro[goal].stdin.buffer.write(convertByte(jsonStr))
-    subpro[goal].stdin.buffer.flush()
+    try:
+        subpro[goal].stdin.buffer.write(convertByte(jsonStr))
+        subpro[goal].stdin.buffer.flush()
+    except:
+        Scores[goal] = -1
+        Scores[1-goal] = 0
+        gameEnd()
 
+@time_limit(2)
 def receiveMsg(AI):
     readBuffer = subpro[AI].stdout.buffer
-    dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
-    data = readBuffer.read(dataLen)
+    try:
+        dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
+        data = readBuffer.read(dataLen)
+    except:
+        Scores[AI] = -1
+        Scores[1-AI] = 0
+        gameEnd()
     return data
 
 def logInitState():
@@ -322,7 +344,20 @@ def endGame():
     tmp = [TipsterCost, min(DetectorRangeCost), min(ProcessorRangeCost) + min(ProcessorTypeCost)]
     if money < min(tmp):
         return True
-    return False                                              
+    return False
+
+def gameEnd():
+    print("%d %d" % (Scores[0], Scores[1]))
+    for pro in subpro:
+        try:
+            pro.terminate()
+        except:
+            pass
+    if Scores[0] > 0 or Scores[1] > 0:
+        fo = open("replay.json", "w")
+        fo.write(json.dumps(log))
+        fo.close()  
+    sys.exit()                                         
 
 
 def main():
@@ -352,11 +387,15 @@ def main():
         # 向AI发送当前的局面信息
         sendRoundState(AI, round)
         # 等待并接收AI的操作信息
-        time.sleep(1)
+        # time.sleep(1)
         # 执行AI的操作消息
-        msg = receiveMsg(AI)
+        try:
+            msg = receiveMsg(AI)
+        except Exception as e:
+            Scores[AI] = -1
+            Scores[1-AI] = 0
+            gameEnd()
         logForSDK[AI] = []
-
         if validate(msg, AI):
             # 为了降低AI难度，结算顺序如下：
             # 治理设备建造操作结算
@@ -382,10 +421,7 @@ def main():
             break
 
     # 保存录像文件
-    print("%d %d" % (Scores[0], Scores[1]))
-    fo = open("replay.json", "w")
-    fo.write(json.dumps(log))
-    fo.close()
+    gameEnd()
 
 
 if __name__ == '__main__':
