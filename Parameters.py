@@ -13,7 +13,7 @@ LandPrice = 200
 # 加载建筑物地图
 BuildingMap = np.load("Buildings.npy")
 
-# 污染空气的种类数
+# 病毒的种类数
 PollutionComponentNum = 3
 
 # 最大回合数 要求一定是偶数
@@ -58,16 +58,16 @@ DetectorRangeCost = [200, 250, 200]
 # 情报贩子的价格
 TipsterCost = 400
 
-# 解决污染的价格
+# 解决病毒的价格
 PollutionProfit = [700, 800, 750]
 
-# 每个非高大建筑的格子是污染源的概率
+# 每个非高大建筑的格子是疫区的概率
 PollutionProbability = 0.35
 
 NotPolluted = (np.random.rand(MapWidth, MapHeight) > PollutionProbability)
 NotPolluted[BuildingMap] = True
 
-# 污染源地图
+# 疫情分布地图
 
 PollutionMap = np.random.randint(
     1, 2**PollutionComponentNum, size=(MapWidth, MapHeight), dtype=np.int)

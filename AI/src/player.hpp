@@ -917,14 +917,14 @@ void getOperations(Parameters *parameters,
 			行动AI编号: int num;
 	    	双方钱数: int money[PLAYER];
 	    	双方分数: int score[PLAYER];
-	    	污染源: int pollution[WIDTH][HEIGHT];
+	    	疫区: int pollution[WIDTH][HEIGHT];
 	    	地皮情况: Land lands[WIDTH][HEIGHT];
 	    	放置检测设备情况: std::vector<Detector>detectors;
 	    	放置治理设备情况: std::vector<Processor>processors;
 			
 		以下变量如果上两回合无该操作，则对应的容器大小为0或者变量为-1
 	    	我方情报贩子的中心点:int tipsterX, tipsterY;
-    		我方情报贩子侦测情报位置和污染情况:int tipsterCheckX, tipsterCheckY, tipsterCheckPollution;
+    		我方情报贩子侦测情报位置和疫情:int tipsterCheckX, tipsterCheckY, tipsterCheckPollution;
     		我方检测设备放置位置和范围类型:int myDetectorX, myDetectorY, myDetectorRange;
     		我方治理设备放置位置和范围类型、病毒类型:
     			int myProcessorX, myProcessorY, myProcessorRange, myProcessorType;
