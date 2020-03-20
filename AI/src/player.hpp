@@ -1,6 +1,6 @@
 #pragma once
 #include "../include/client/client.h"
-
+#include <ctime>
 /*
 	常量
 */
