@@ -3,5 +3,6 @@ AI/CMakeFiles/
 AI/CMakeCache.txt
 AI/cmake_install.cmake
 AI/sample_ai
+AI/Makefile
 log0.txt
 log1.txt 
