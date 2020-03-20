@@ -1,4 +1,3 @@
-from Units import *
 import numpy as np
 import random
 import math
@@ -109,6 +108,7 @@ Scores = [0, 0]
 Moneys = [4000, 4000]
 
 # 所有地皮的竞价与使用情况
+from Units import *
 Lands = [[] for i in range(MapWidth)]
 
 for i in range(MapWidth):
@@ -118,7 +118,6 @@ for i in range(MapWidth):
                 Land((i, j), owner=2, occupied=True, filled=True, bidOnly=2))
         else:
             Lands[i].append(Land((i, j)))
-
 if __name__ == '__main__':
     def PrintMap(m):
         if m.dtype == np.bool:
@@ -150,3 +149,4 @@ if __name__ == '__main__':
     print('Pollution Map 1')
     PrintMap(PollutionMap1)
     print()
+
