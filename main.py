@@ -6,6 +6,7 @@ import shlex
 import subprocess
 import asyncio
 import signal
+import threading
 
 detectors = []
 processors = []
@@ -20,20 +21,18 @@ logPerRound = []
 msgObj = {}
 logForSDK = [[], []]
 
+time_tag = True
+
 # DEBUG
 
-def time_limit(interval):
-    def wraps(func):
-        def handler():
-            raise RuntimeError()
-        def deco(*args, **kwargs):
-            signal.signal(signal.SIGALRM, handler)
-            signal.alarm(interval)
-            res = func(*args, **kwargs)
-            signal.alarm(0)
-            return res
-        return deco
-    return wraps
+def time_limit(interval, AI):
+    global time_tag, subpro
+    time.sleep(interval)
+    if not time_tag:
+        try:
+            subpro[AI].terminate()
+        except Exception as e:
+            print(e)
 
 def convertByte(jsonStr):
     msgLen = len(jsonStr)
@@ -43,15 +42,15 @@ def convertByte(jsonStr):
 
 def sendMsg(jsonStr, goal):
     jsonObj = json.loads(jsonStr)
+    # print(jsonStr)
     try:
         subpro[goal].stdin.buffer.write(convertByte(jsonStr))
         subpro[goal].stdin.buffer.flush()
     except:
-        Scores[goal] = -1
-        Scores[1-goal] = 0
+        Scores[goal] = 0
+        Scores[1-goal] = 1
         gameEnd()
 
-@time_limit(2)
 def receiveMsg(AI):
     readBuffer = subpro[AI].stdout.buffer
     try:
@@ -361,7 +360,7 @@ def gameEnd():
 
 
 def main():
-    global log,logPerRound,subpro, logForSDK
+    global log,logPerRound,subpro, logForSDK, time_tag
     #启动进程
     try:
         subpro.append(subprocess.Popen(shlex.split(sys.argv[1]), stdout=subprocess.PIPE,\
@@ -383,15 +382,20 @@ def main():
     logInitState()    
 
     for round in range(MaxRound):
+        #print(round)
         AI = round % 2
         # 向AI发送当前的局面信息
         sendRoundState(AI, round)
         # 等待并接收AI的操作信息
-        # time.sleep(1)
         # 执行AI的操作消息
-        try:
-            msg = receiveMsg(AI)
-        except Exception as e:
+        time_tag = False
+        t = threading.Thread(name='time_limit', target=time_limit, args=(2, AI))
+        t.start()
+        msg = receiveMsg(AI)
+        time_tag = True
+        t.join()
+        returnCode = subpro[AI].poll()
+        if returnCode is not None:
             Scores[AI] = 0
             Scores[1-AI] = 1
             gameEnd()
