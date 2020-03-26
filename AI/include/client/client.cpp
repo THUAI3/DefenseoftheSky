@@ -245,7 +245,7 @@ Client::~Client(){
 	delete opt;
 }
 bool Client::init(){
-	std::string initStr = read();
+	std::string initStr = getRead();
 	root.clear();
 	if(!reader.parse(initStr, root))return false;
 	parameters->num = root["AI"].asInt();
@@ -279,7 +279,7 @@ bool Client::init(){
 	return true;
 }
 bool Client::stateInfo(){
-	std::string stateStr = read();
+	std::string stateStr = getRead();
 	root.clear();
 	if(!reader.parse(stateStr, root))return false;
 	state->clear();
@@ -380,7 +380,7 @@ bool Client::stateInfo(){
 	}
 	return true;
 }
-void Client::sendOpt(){
+void Client::sendOpt(FILE* fp){
 	root.clear();
 	if(opt->tipsterX != -1 || opt->tipsterY != -1){
 		root["tipster"]["pos"][0] = opt->tipsterX;
@@ -408,15 +408,21 @@ void Client::sendOpt(){
 	}else root["bid"] = Json::Value();
 
 	std::string jsonStr = fw.write(root);
+	while(jsonStr[jsonStr.length()-1] == '\r' || jsonStr[jsonStr.length()-1] == '\n'){
+		jsonStr = jsonStr.substr(0, jsonStr.length()-1);
+	}
 	sendLen((int)(jsonStr.length()));
 	printf("%s", jsonStr.c_str());
 	fflush(stdout);
+	//fprintf(fp, "%s", jsonStr.c_str());
+	//fflush(fp);
 }
-std::string Client::read(){
+std::string Client::getRead(){
 	char tmp[4];
     std::string msg;
     while(true){
         scanf("%4c", tmp);
+		
         int len = (unsigned int)((((unsigned int)tmp[3]) & 255) |
                                 ((((unsigned int)tmp[2]) & 255) << 8) |
                                 ((((unsigned int)tmp[1]) & 255) << 16) |

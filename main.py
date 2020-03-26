@@ -27,7 +27,9 @@ time_tag = True
 
 def time_limit(interval, AI):
     global time_tag, subpro
+    #print('start sleep')
     time.sleep(interval)
+    #print('end sleep')
     if not time_tag:
         try:
             subpro[AI].terminate()
@@ -41,12 +43,15 @@ def convertByte(jsonStr):
     return msg
 
 def sendMsg(jsonStr, goal):
-    jsonObj = json.loads(jsonStr)
+    # jsonObj = json.loads(jsonStr)
     # print(jsonStr)
     try:
+        #print(subpro[goal].poll())
         subpro[goal].stdin.buffer.write(convertByte(jsonStr))
-        subpro[goal].stdin.buffer.flush()
+        subpro[goal].stdin.flush()
+        #print(subpro[goal].poll())
     except:
+        # print(e)
         Scores[goal] = 0
         Scores[1-goal] = 1
         gameEnd()
@@ -54,8 +59,11 @@ def sendMsg(jsonStr, goal):
 def receiveMsg(AI):
     readBuffer = subpro[AI].stdout.buffer
     try:
-        dataLen = int.from_bytes(readBuffer.read(4), byteorder='big', signed=True)
+        tmpBytes = readBuffer.read(4)
+        #print(tmpBytes)
+        dataLen = int.from_bytes(tmpBytes, byteorder='big', signed=True)
         data = readBuffer.read(dataLen)
+        #print(data)
     except:
         Scores[AI] = 0
         Scores[1-AI] = 1
@@ -376,13 +384,15 @@ def main():
         print(e)
         sys.exit()
     # 初始化，给出地图信息
+    #for i in subpro:
+       # print(i.poll())
     sendInitState(0)
     sendInitState(1)
 
     logInitState()    
 
     for round in range(MaxRound):
-        #print(round)
+        print(f'round={round}')
         AI = round % 2
         # 向AI发送当前的局面信息
         sendRoundState(AI, round)

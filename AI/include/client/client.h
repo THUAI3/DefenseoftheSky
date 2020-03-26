@@ -126,12 +126,12 @@ public:
 	~Client();
 	bool init();
 	bool stateInfo();
-	void sendOpt();
+	void sendOpt(FILE* fp);
 private:
 	Json::Value root;
 	Json::Reader reader;
 	Json::FastWriter fw;
-	std::string read();
+	std::string getRead();
 	void sendLen(int len);
 };
 
