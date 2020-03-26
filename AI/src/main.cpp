@@ -21,7 +21,7 @@ int main(){
 #ifdef DEBUG
 		client->opt->Debug(fp);
 #endif
-		client->sendOpt(fp);
+		client->sendOpt();
 	}
 #ifdef DEBUG
 	fclose(fp);

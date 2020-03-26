@@ -126,7 +126,7 @@ public:
 	~Client();
 	bool init();
 	bool stateInfo();
-	void sendOpt(FILE* fp);
+	void sendOpt();
 private:
 	Json::Value root;
 	Json::Reader reader;

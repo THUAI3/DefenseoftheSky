@@ -380,7 +380,7 @@ bool Client::stateInfo(){
 	}
 	return true;
 }
-void Client::sendOpt(FILE* fp){
+void Client::sendOpt(){
 	root.clear();
 	if(opt->tipsterX != -1 || opt->tipsterY != -1){
 		root["tipster"]["pos"][0] = opt->tipsterX;
